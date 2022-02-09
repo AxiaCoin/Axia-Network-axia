@@ -1,0 +1,36 @@
+[package]
+name = "bp-alphanet"
+description = "Primitives of AlphaNet runtime."
+version = "0.1.0"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+axc-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+
+# Bridge Dependencies
+bp-header-chain = { path = "../header-chain", default-features = false }
+bp-messages = { path = "../messages", default-features = false }
+bp-axia-core = { path = "../axia-core", default-features = false }
+bp-runtime = { path = "../runtime", default-features = false }
+
+# Axlib Based Dependencies
+sp-api = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-version = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+
+[features]
+default = ["std"]
+std = [
+	"bp-header-chain/std",
+	"bp-messages/std",
+	"bp-axia-core/std",
+	"bp-runtime/std",
+	"axc-scale-codec/std",
+	"sp-api/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-version/std",
+]

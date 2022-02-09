@@ -1,0 +1,33 @@
+[package]
+name = "axia-node-core-av-store"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.17"
+futures-timer = "3.0.2"
+kvdb = "0.10.0"
+thiserror = "1.0.30"
+tracing = "0.1.29"
+bitvec = "0.20.1"
+
+axc-scale-codec = { version = "2.3.1", features = ["derive"] }
+erasure = { package = "axia-erasure-coding", path = "../../../erasure-coding" }
+axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+axia-overseer = { path = "../../overseer" }
+axia-primitives = { path = "../../../primitives" }
+axia-node-primitives = { path = "../../primitives" }
+
+[dev-dependencies]
+log = "0.4.13"
+env_logger = "0.9.0"
+assert_matches = "1.4.0"
+kvdb-memorydb = "0.10.0"
+
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+parking_lot = "0.11.1"

@@ -1,0 +1,23 @@
+name: Send new release notification to matrix channels
+on:
+  release:
+    types:
+      - published
+jobs:
+  ping_matrix:
+    strategy:
+      matrix:
+        channel:
+        - '!LhjZccBOqFNYKLdmbb:axia.builders' # #AXIATESTValidatorLounge:axia.builders
+        - '!FMwxpQnYhRCNDRsYGI:matrix.axiacoin.network' # #axiatest-announcements:matrix.axiacoin.network
+        - '!NZrbtteFeqYKCUGQtr:matrix.axiacoin.network' # #axiavalidatorlounge:web3.foundation
+        - '!UqHPWiCBGZWxrmYBkF:matrix.axiacoin.network' # #axia-announcements:matrix.axiacoin.network
+        - '!NTogofoetwjbTwOoPi:matrix.axiacoin.network' # Internal release-notes channel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: s3krit/matrix-message-action@v0.0.3
+        with:
+          room_id: ${{ matrix.channel }} # heh
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          message: "***AXIA ${{github.event.release.tag_name}} has been released!***<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
+          server: "matrix.axiacoin.network"

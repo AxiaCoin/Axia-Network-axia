@@ -1,0 +1,26 @@
+[package]
+name = "axia-network-bridge"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+async-trait = "0.1.51"
+futures = "0.3.17"
+tracing = "0.1.29"
+axia-primitives = { path = "../../../primitives" }
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-consensus = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
+axia-overseer = { path = "../../overseer" }
+axia-node-network-protocol = { path = "../protocol" }
+axia-node-subsystem-util = { path = "../../subsystem-util"}
+parking_lot = "0.11.1"
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+futures-timer = "3"

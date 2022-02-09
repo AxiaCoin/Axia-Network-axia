@@ -1,0 +1,28 @@
+[package]
+name = "axia-node-core-backing"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.17"
+sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axia-primitives = { path = "../../../primitives" }
+axia-node-primitives = { path = "../../primitives" }
+axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+erasure-coding = { package = "axia-erasure-coding", path = "../../../erasure-coding" }
+statement-table = { package = "axia-statement-table", path = "../../../statement-table" }
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+tracing = "0.1.29"
+thiserror = "1.0.30"
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-tracing = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+futures = { version = "0.3.17", features = ["thread-pool"] }
+assert_matches = "1.4.0"
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

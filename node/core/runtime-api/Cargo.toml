@@ -1,0 +1,26 @@
+[package]
+name = "axia-node-core-runtime-api"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.17"
+tracing = "0.1.29"
+memory-lru = "0.1.0"
+axc-util-mem = { version = "0.10.0", default-features = false }
+
+sp-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-authority-discovery = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-consensus-babe = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+axia-primitives = { path = "../../../primitives" }
+axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+futures = { version = "0.3.17", features = ["thread-pool"] }
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+axia-node-primitives = { path = "../../primitives" }

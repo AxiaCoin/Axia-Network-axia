@@ -1,0 +1,153 @@
+[[bin]]
+name = "axia"
+path = "src/main.rs"
+
+[package]
+name = "axia"
+description = "Implementation of a https://axia.network node in Rust based on the Axlib framework."
+license = "GPL-3.0-only"
+version = "0.1.0"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+readme = "README.md"
+
+[dependencies]
+axia-cli = { path = "cli", features = [ "axiatest-native", "alphanet-native", "betanet-native" ]  }
+color-eyre = { version = "0.5.11", default-features = false }
+axc-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
+
+[dev-dependencies]
+assert_cmd = "1.0.2"
+nix = "0.20.0"
+tempfile = "3.2.0"
+
+[workspace]
+members = [
+	"cli",
+	"core-primitives",
+	"erasure-coding",
+	"primitives",
+	"runtime/common",
+	"runtime/common/slot_range_helper",
+	"runtime/allychains",
+	"runtime/axia",
+	"runtime/axiatest",
+	"runtime/betanet",
+	"runtime/alphanet",
+	"runtime/test-runtime",
+	"statement-table",
+	"xcm",
+	"xcm/xcm-builder",
+	"xcm/xcm-executor",
+	"xcm/xcm-executor/integration-tests",
+	"xcm/xcm-simulator",
+	"xcm/xcm-simulator/example",
+	"xcm/xcm-simulator/fuzzer",
+	"xcm/pallet-xcm",
+	"xcm/pallet-xcm-benchmarks",
+	"xcm/procedural",
+	"node/client",
+	"node/collation-generation",
+	"node/core/approval-voting",
+	"node/core/av-store",
+	"node/core/backing",
+	"node/core/bitfield-signing",
+	"node/core/candidate-validation",
+	"node/core/chain-api",
+	"node/core/chain-selection",
+	"node/core/dispute-coordinator",
+	"node/core/dispute-participation",
+	"node/core/allychains-inherent",
+	"node/core/provisioner",
+	"node/core/pvf",
+	"node/core/runtime-api",
+	"node/network/approval-distribution",
+	"node/network/bridge",
+	"node/network/protocol",
+	"node/network/statement-distribution",
+	"node/network/bitfield-distribution",
+	"node/network/availability-distribution",
+	"node/network/availability-recovery",
+	"node/network/collator-protocol",
+	"node/network/gossip-support",
+	"node/network/dispute-distribution",
+	"node/overseer",
+	"node/overseer/overseer-gen",
+	"node/overseer/overseer-gen/proc-macro",
+	"node/malus",
+	"node/primitives",
+	"node/service",
+	"node/subsystem",
+	"node/subsystem-types",
+	"node/subsystem-test-helpers",
+	"node/subsystem-util",
+	"node/jaeger",
+	"node/metrics",
+	"node/metered-channel",
+	"node/test/client",
+	"node/test/service",
+	"node/test/axia-simnet/common",
+	"node/test/axia-simnet/node",
+	"node/test/axia-simnet/test",
+	"allychain/test-allychains",
+	"allychain/test-allychains/adder",
+	"allychain/test-allychains/adder/collator",
+	"utils/staking-miner",
+	"utils/remote-ext-tests/bags-list",
+	"utils/voter-bags",
+]
+
+# We want to be able to build the bridge relayer without pulling it (and all of its
+# dependencies into the AXIA workspace)
+exclude = ["bridges/relays/bin-axlib", "bridges/bin/rialto/runtime", "bridges/bin/millau/runtime"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+opt-level = 3
+
+[profile.release]
+# AXIA runtime requires unwinding.
+panic = "unwind"
+
+[features]
+runtime-benchmarks= [ "axia-cli/runtime-benchmarks" ]
+try-runtime = [ "axia-cli/try-runtime" ]
+disputes = [ "axia-cli/disputes" ]
+
+# Configuration for building a .deb package - for use with `cargo-deb`
+[package.metadata.deb]
+name = "axia"
+extended-description = "Implementation of a https://axia.network node in Rust based on the Axlib framework."
+section = "misc"
+maintainer = "martin@axiacoin.network"
+license-file = ["LICENSE", "0"]
+# https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
+assets = [
+	["target/release/axia", "/usr/bin/", "755"],
+	["scripts/packaging/axia.service", "/lib/systemd/system/", "644"]
+]
+conf-files = [
+	"/etc/default/axia"
+]
+
+# Configuration for building an .rpm package - for use with `cargo-rpm`
+[package.metadata.rpm]
+package = "axia"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+axia = { path = "/usr/bin/axia" }
+
+[package.metadata.rpm.files]
+"../scripts/packaging/axia.service" = { path = "/usr/lib/systemd/system/axia.service", mode = "644" }
+
+
+[package.metadata.spellcheck]
+config = "./scripts/gitlab/spellcheck.toml"

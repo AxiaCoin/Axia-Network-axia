@@ -1,0 +1,30 @@
+[package]
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+name = "xcm-executor-integration-tests"
+description = "Integration tests for the XCM Executor"
+version = "0.9.12"
+
+[dependencies]
+frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+frame-system = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+futures = "0.3.17"
+pallet-xcm = { path = "../../pallet-xcm" }
+axia-test-client = { path = "../../../node/test/client" }
+axia-test-runtime = { path = "../../../runtime/test-runtime" }
+axia-test-service = { path = "../../../node/test/service" }
+sp-consensus = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-state-machine = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+xcm = { path = "../..", default-features = false }
+xcm-executor = { path = ".." }
+sp-tracing = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+[features]
+default = ["std"]
+std = [
+	"xcm/std",
+	"sp-runtime/std",
+	"frame-support/std",
+]

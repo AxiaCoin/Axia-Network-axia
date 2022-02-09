@@ -1,0 +1,14 @@
+[package]
+name = "axia-erasure-coding"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+axia-primitives = { path = "../primitives" }
+axia-node-primitives = { package = "axia-node-primitives", path = "../node/primitives" }
+novelpoly = { package = "reed-solomon-novelpoly", version = "1.0.0" }
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["std", "derive"] }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+trie = { package = "sp-trie", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+thiserror = "1.0.30"

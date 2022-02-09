@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+action="$1"
+config_file="/etc/default/axia"
+
+if [ "$action" = "configure" ]; then
+  # Make user and group
+  getent group axia >/dev/null 2>&1 || addgroup --system axia
+  getent passwd axia >/dev/null 2>&1 ||
+    adduser --system --home /home/axia --disabled-password \
+    --ingroup axia axia
+  if [ ! -e "$config_file" ]; then
+    echo 'AXIA_CLI_ARGS=""' > /etc/default/axia
+  fi
+fi

@@ -1,0 +1,11 @@
+[package]
+name = "axia-node-subsystem"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+description = "Subsystem traits and message definitions and the generated overseer"
+
+[dependencies]
+axia-overseer = { path = "../overseer" }
+axia-node-subsystem-types = { path = "../subsystem-types" }
+axia-node-jaeger = { path = "../jaeger" }

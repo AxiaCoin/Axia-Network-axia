@@ -1,0 +1,8 @@
+[package]
+name = "axia-simnet-node"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+axia-simnet = { path = "../common" }

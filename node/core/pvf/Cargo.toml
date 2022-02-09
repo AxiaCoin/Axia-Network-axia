@@ -1,0 +1,41 @@
+[package]
+name = "axia-node-core-pvf"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[[bin]]
+name = "puppet_worker"
+path = "bin/puppet_worker.rs"
+
+[dependencies]
+always-assert = "0.1"
+async-std = { version = "1.10.0", features = ["attributes"] }
+async-process = "1.1.0"
+assert_matches = "1.4.0"
+futures = "0.3.17"
+futures-timer = "3.0.2"
+libc = "0.2.103"
+slotmap = "1.0"
+tracing = "0.1.29"
+pin-project = "1.0.8"
+rand = "0.8.3"
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+axia-allychain = { path = "../../../allychain" }
+axia-core-primitives = { path = "../../../core-primitives" }
+axia-node-subsystem-util = { path = "../../subsystem-util"}
+sc-executor = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-executor-wasmtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-executor-common = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-externalities = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-io = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-wasm-interface = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-maybe-compressed-blob = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-tracing = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+[dev-dependencies]
+adder = { package = "test-allychain-adder", path = "../../../allychain/test-allychains/adder" }
+halt = { package = "test-allychain-halt", path = "../../../allychain/test-allychains/halt" }
+hex-literal = "0.3.3"
+tempfile = "3.2.0"

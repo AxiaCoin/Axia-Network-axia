@@ -1,0 +1,31 @@
+{
+  "name": "AlphaNet",
+  "id": "alphanet2",
+  "bootNodes": [
+    "/dns/full4.p2p.test.axia.zeeve.net/tcp/3102/ws/p2p/12D3KooWJPibqe2xo2jeHGaED3nJgzjzCiNUXvzkppiDF5b2hfJ9"
+  ],
+  "telemetryEndpoints": [
+    [
+      "wss://telemetry.test.axiacoin.network/submit/",
+      0
+    ]
+  ],
+  "protocolId": "wnd2",
+  "properties": {
+    "ss58Format": 42,
+    "tokenDecimals": 12,
+    "tokenSymbol": "AXC"
+  },
+  "forkBlocks": null,
+  "badBlocks": [
+    "",
+    ""
+  ],
+  "consensusEngine": null,
+  "genesis": {
+    "raw": {
+      "top": {},
+      "childrenDefault": {}
+    }
+ }
+}

@@ -1,0 +1,18 @@
+[package]
+name = "axia-node-core-bitfield-signing"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.17"
+tracing = "0.1.29"
+axia-primitives = { path = "../../../primitives" }
+axia-node-subsystem = { path = "../../subsystem" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+wasm-timer = "0.2.5"
+thiserror = "1.0.30"
+
+[dev-dependencies]
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

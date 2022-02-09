@@ -1,0 +1,28 @@
+[package]
+name = "axia-node-primitives"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+description = "Primitives types for the Node-side"
+
+[dependencies]
+bounded-vec = "0.4"
+futures = "0.3.17"
+axia-primitives = { path = "../../primitives" }
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-consensus-vrf = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-consensus-babe = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-maybe-compressed-blob = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axia-allychain = { path = "../../allychain", default-features = false }
+schnorrkel = "0.9.1"
+thiserror = "1.0.30"
+serde = { version = "1.0.130", features = ["derive"] }
+
+[target.'cfg(not(target_os = "unknown"))'.dependencies]
+zstd = "0.9.0"
+
+[dev-dependencies]
+axia-erasure-coding = { path = "../../erasure-coding" }

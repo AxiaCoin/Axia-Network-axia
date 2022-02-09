@@ -1,0 +1,27 @@
+[package]
+name = "axia-approval-distribution"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+axia-node-primitives = { path = "../../primitives" }
+axia-node-network-protocol = { path = "../protocol" }
+axia-node-subsystem = { path = "../../subsystem" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+axia-primitives = { path = "../../../primitives" }
+
+futures = "0.3.17"
+tracing = "0.1.29"
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/axia-tech/axia-core", features = ["std"] , branch = "dev" }
+
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+
+assert_matches = "1.4.0"
+schnorrkel = { version = "0.9.1", default-features = false }
+rand_core = "0.5.1" # should match schnorrkel
+env_logger = "0.9.0"
+log = "0.4.13"

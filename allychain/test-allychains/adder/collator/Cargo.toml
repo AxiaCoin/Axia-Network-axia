@@ -1,0 +1,47 @@
+[package]
+name = "test-allychain-adder-collator"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+description = "Collator for the adder test allychain"
+edition = "2018"
+
+[[bin]]
+name = "adder-collator"
+path = "src/main.rs"
+
+[[bin]]
+name = "adder_collator_puppet_worker"
+path = "bin/puppet_worker.rs"
+
+[dependencies]
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+futures = "0.3.17"
+futures-timer = "3.0.2"
+log = "0.4.13"
+structopt = "0.3.23"
+
+test-allychain-adder = { path = ".." }
+axia-primitives = { path = "../../../../primitives" }
+axia-cli = { path = "../../../../cli" }
+axia-service = { path = "../../../../node/service", features = ["betanet-native"] }
+axia-node-primitives = { path = "../../../../node/primitives" }
+axia-node-subsystem = { path = "../../../../node/subsystem" }
+
+sc-cli = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-service = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+# This one is tricky. Even though it is not used directly by the collator, we still need it for the
+# `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
+# a big problem since it is used transitively anyway.
+axia-node-core-pvf = { path = "../../../../node/core/pvf" }
+
+[dev-dependencies]
+axia-allychain = { path = "../../.." }
+axia-test-service = { path = "../../../../node/test/service" }
+
+axlib-test-utils = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-service = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+tokio = { version = "1.12", features = ["macros"] }

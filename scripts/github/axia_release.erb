@@ -1,0 +1,42 @@
+<%= print release_priority[:text] %> <%= puts " due to changes: *#{Changelog.changes_with_label(all_changes, release_priority[:label]).map(&:pretty_title).join(", ")}*" if release_priority[:priority] > 1 %>
+
+Native runtimes:
+
+- AXIA: **<%= axia_runtime %>**
+- AXIATEST: **<%= axiatest_runtime %>**
+- AlphaNet: **<%= alphanet_runtime %>**
+
+This release was tested against the following versions of `rustc`. Other versions may work.
+
+- <%= rustc_stable %>
+- <%= rustc_nightly %>
+
+WASM runtimes built with [<%= axia_json['info']['generator']['name'] %> v<%= axia_json['info']['generator']['version'] %>](https://github.com/axia/srtool) using `<%= axia_json['rustc'] %>`.
+
+Proposal hashes:
+* `axia_runtime-v<%= axia_runtime %>.compact.compressed.wasm`: `<%= axia_json['runtimes']['compressed']['prop'] %>`
+* `axiatest_runtime-v<%= axiatest_runtime %>.compact.compressed.wasm`: `<%= axiatest_json['runtimes']['compressed']['prop'] %>`
+
+<% unless misc_changes.empty? %>
+## Changes
+
+<% misc_changes.each do |c| %>
+* <%= c[:pretty_title] %>
+<% end %>
+<% end %>
+
+<% unless client_changes.empty? %>
+## Client
+
+<% client_changes.each do |c| %>
+* <%= c[:pretty_title] %>
+<% end %>
+<% end %>
+
+<% unless runtime_changes.empty? %>
+## Runtime
+
+<% runtime_changes.each do |c| %>
+* <%= c[:pretty_title] %>
+<% end %>
+<% end %>

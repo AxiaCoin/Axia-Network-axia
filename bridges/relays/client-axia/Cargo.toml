@@ -1,0 +1,25 @@
+[package]
+name = "relay-axia-client"
+version = "0.1.0"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+codec = { package = "axc-scale-codec", version = "2.0.0" }
+headers-relay = { path = "../headers" }
+relay-axlib-client = { path = "../client-axlib" }
+relay-utils = { path = "../utils" }
+
+# Bridge dependencies
+
+bp-axia = { path = "../../primitives/chain-axia" }
+
+# Axlib Dependencies
+
+frame-system = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+frame-support = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+pallet-transaction-payment = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }

@@ -1,0 +1,12 @@
+{
+	"--1": "BetaNet Types",
+	"BetaNetBalance": "u128",
+	"BetaNetBlockHash": "H256",
+	"BetaNetBlockNumber": "u32",
+	"BetaNetHeader": "Header",
+	"--2": "Wococo Types",
+	"WococoBalance": "BetaNetBalance",
+	"WococoBlockHash": "BetaNetBlockHash",
+	"WococoBlockNumber": "BetaNetBlockNumber",
+	"WococoHeader": "BetaNetHeader"
+}

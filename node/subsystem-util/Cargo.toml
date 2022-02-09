@@ -1,0 +1,37 @@
+[package]
+name = "axia-node-subsystem-util"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+description = "Subsystem traits and message definitions"
+
+[dependencies]
+async-trait = "0.1.51"
+futures = "0.3.17"
+itertools = "0.10"
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+pin-project = "1.0.8"
+rand = "0.8.3"
+thiserror = "1.0.30"
+tracing = "0.1.29"
+derive_more = "0.99.11"
+lru = "0.7.0"
+
+axia-node-subsystem = { package = "axia-node-subsystem", path = "../subsystem" }
+axia-node-jaeger = { path = "../jaeger" }
+axia-node-metrics = { path = "../metrics" }
+axia-node-network-protocol = { path = "../network/protocol" }
+axia-primitives = { path = "../../primitives" }
+axia-overseer = { path = "../overseer" }
+metered-channel = { path = "../metered-channel" }
+
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+[dev-dependencies]
+assert_matches = "1.4.0"
+env_logger = "0.9.0"
+futures = { version = "0.3.17", features = ["thread-pool"] }
+log = "0.4.13"
+axia-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }

@@ -1,0 +1,31 @@
+# Exposed ports: 10616
+
+version: '3.5'
+services:
+  relay-headers-alphanet-to-millau:
+    image: axia/axlib-relay
+    entrypoint: /entrypoints/relay-headers-alphanet-to-millau-entrypoint.sh
+    volumes:
+      - ./bridges/alphanet-millau/entrypoints:/entrypoints
+    environment:
+      RUST_LOG: rpc=trace,bridge=trace
+    ports:
+      - "10616:9616"
+    depends_on:
+      - millau-node-alice
+
+  # Note: These are being overridden from the top level `monitoring` compose file.
+  grafana-dashboard:
+    environment:
+      VIRTUAL_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
+      VIRTUAL_PORT: 3000
+      LETSENCRYPT_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
+      LETSENCRYPT_EMAIL: admin@axiacoin.network
+    volumes:
+      - ./bridges/alphanet-millau/dashboard/grafana:/etc/grafana/dashboards/alphanet-millau:ro
+
+  prometheus-metrics:
+    volumes:
+      - ./bridges/alphanet-millau/dashboard/prometheus/targets.yml:/etc/prometheus/targets-alphanet-millau.yml
+    depends_on:
+      - relay-headers-alphanet-to-millau

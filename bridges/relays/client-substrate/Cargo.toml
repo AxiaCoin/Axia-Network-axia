@@ -1,0 +1,42 @@
+[package]
+name = "relay-axlib-client"
+version = "0.1.0"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+async-std = { version = "1.6.5", features = ["attributes"] }
+async-trait = "0.1.40"
+codec = { package = "axc-scale-codec", version = "2.0.0" }
+jsonrpsee-proc-macros = "=0.2.0-alpha.6"
+jsonrpsee-ws-client = "=0.2.0-alpha.6"
+log = "0.4.11"
+num-traits = "0.2"
+rand = "0.7"
+
+# Bridge dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain" }
+bp-messages = { path = "../../primitives/messages" }
+bp-runtime = { path = "../../primitives/runtime" }
+finality-relay = { path = "../finality" }
+headers-relay = { path = "../headers" }
+relay-utils = { path = "../utils" }
+
+# Axlib Dependencies
+
+frame-support = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+frame-system = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+pallet-balances = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-rpc-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-finality-grandpa = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-storage = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-std = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-trie = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-version = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+#[dev-dependencies]
+futures = "0.3.7"

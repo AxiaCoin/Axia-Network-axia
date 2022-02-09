@@ -1,0 +1,16 @@
+[package]
+name = "test-allychain-halt"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+description = "Test allychain which executes forever"
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+
+[build-dependencies]
+axlib-wasm-builder = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+
+[features]
+default = [ "std" ]
+std = []

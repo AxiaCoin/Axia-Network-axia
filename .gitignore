@@ -1,0 +1,15 @@
+**/target/
+**/*.rs.bk
+*.swp
+.wasm-binaries
+runtime/wasm/target/
+**/._*
+.idea
+.vscode
+axia.*
+!axia.service
+!.rpm/*
+.DS_Store
+.cargo
+.env
+builds/

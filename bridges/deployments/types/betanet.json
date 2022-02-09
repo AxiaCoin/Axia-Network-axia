@@ -1,0 +1,14 @@
+{
+	"Fee": "BetaNetBalance",
+	"Balance": "BetaNetBalance",
+	"BlockHash": "BetaNetBlockHash",
+	"BlockNumber": "BetaNetBlockNumber",
+	"BridgedBlockHash": "WococoBlockHash",
+	"BridgedBlockNumber": "WococoBlockNumber",
+	"BridgedHeader": "WococoHeader",
+	"Parameter": {
+		"_enum": {
+			"BetaNetToWococoConversionRate": "u128"
+		}
+	}
+}

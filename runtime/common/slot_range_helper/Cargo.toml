@@ -1,0 +1,20 @@
+[package]
+name = "slot-range-helper"
+version = "0.9.12"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+
+[dependencies]
+paste = "1.0"
+enumn = "0.1.3"
+axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+sp-std = { package = "sp-std", git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+
+[features]
+default = ["std"]
+std = [
+	"sp-std/std",
+	"axc-scale-codec/std",
+	"sp-runtime/std",
+]

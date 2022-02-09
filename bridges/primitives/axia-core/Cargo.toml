@@ -1,0 +1,45 @@
+[package]
+name = "bp-axia-core"
+description = "Primitives of AXIA-like runtime."
+version = "0.1.0"
+authors = ["AXIA Technologies <admin@axiacoin.network>"]
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+axc-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+
+# Bridge Dependencies
+
+bp-messages = { path = "../messages", default-features = false }
+bp-runtime = { path = "../runtime", default-features = false }
+
+# Axlib Based Dependencies
+
+frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+frame-system = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-api = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-version = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+
+[dev-dependencies]
+hex = "0.4"
+
+[features]
+default = ["std"]
+std = [
+	"bp-messages/std",
+	"bp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"axc-scale-codec/std",
+	"scale-info/std",
+	"sp-api/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-version/std",
+]
