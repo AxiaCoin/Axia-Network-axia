@@ -21,7 +21,7 @@
 #![recursion_limit = "256"]
 
 use pallet_transaction_payment::CurrencyAdapter;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use axia_runtime_allychains::{

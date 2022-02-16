@@ -19,7 +19,7 @@
 use super::*;
 pub use axia_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
-use axc_util_mem::MemoryAllocationSnapshot;
+use axia_util_mem::MemoryAllocationSnapshot;
 
 /// Overseer Prometheus metrics.
 #[derive(Clone)]

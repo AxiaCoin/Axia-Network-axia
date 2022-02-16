@@ -19,7 +19,7 @@
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use primitives::v1::Id as ParaId;
 use runtime_allychains::{
 	configuration, dmp, hrmp,

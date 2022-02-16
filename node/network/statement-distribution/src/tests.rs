@@ -18,7 +18,7 @@ use super::*;
 use assert_matches::assert_matches;
 use futures::executor::{self, block_on};
 use futures_timer::Delay;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_node_network_protocol::{
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},

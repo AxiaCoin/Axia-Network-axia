@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use axc_util_mem::MallocSizeOf;
+use axia_util_mem::MallocSizeOf;
 use sp_runtime::traits::CheckEqual;
 
 // `sp_core::H512` can't be used, because it doesn't implement `CheckEqual`, which is required

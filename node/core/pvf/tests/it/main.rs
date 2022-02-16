@@ -15,7 +15,7 @@
 // along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_std::sync::Mutex;
-use axc_scale_codec::Encode as _;
+use axia_scale_codec::Encode as _;
 use axia_node_core_pvf::{
 	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
 };

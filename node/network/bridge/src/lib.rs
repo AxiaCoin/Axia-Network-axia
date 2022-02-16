@@ -20,7 +20,7 @@
 #![warn(missing_docs)]
 
 use futures::{prelude::*, stream::BoxStream};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;

@@ -19,7 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use enumn::N;
-pub use axc_scale_codec::{Decode, Encode};
+pub use axia_scale_codec::{Decode, Encode};
 pub use paste;
 pub use sp_runtime::traits::CheckedSub;
 pub use sp_std::{convert::TryInto, ops::Add, result};

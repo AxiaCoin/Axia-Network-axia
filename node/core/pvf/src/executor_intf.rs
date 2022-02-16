@@ -302,7 +302,7 @@ impl sp_core::traits::ReadRuntimeVersion for ReadRuntimeVersion {
 			.map_err(|e| format!("Failed to read the static section from the PVF blob: {:?}", e))?
 		{
 			Some(version) => {
-				use axc_scale_codec::Encode;
+				use axia_scale_codec::Encode;
 				Ok(version.encode())
 			},
 			None => Err(format!("runtime version section is not found")),

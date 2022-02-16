@@ -6,7 +6,7 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive", "max-encoded-len"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.130", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
@@ -97,7 +97,7 @@ std = [
 	"bp-runtime/std",
 	"bp-wococo/std",
 	"bridge-runtime-common/std",
-	"axc-scale-codec/std",
+	"axia-scale-codec/std",
 	"scale-info/std",
 	"frame-executive/std",
 	"pallet-authority-discovery/std",

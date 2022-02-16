@@ -5,7 +5,7 @@ authors = ["AXIA Technologies <admin@axiacoin.network>"]
 edition = "2018"
 
 [dependencies]
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 
 # AXIA dependencies
 axia-test-runtime = { path = "../../../runtime/test-runtime" }

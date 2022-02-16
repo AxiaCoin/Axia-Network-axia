@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.17"
 tracing = "0.1.29"
 memory-lru = "0.1.0"
-axc-util-mem = { version = "0.10.0", default-features = false }
+axia-util-mem = { version = "0.10.0", default-features = false }
 
 sp-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
 sp-authority-discovery = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }

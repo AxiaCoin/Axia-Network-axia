@@ -15,7 +15,7 @@
 // along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::traits::Get;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use sp_std::{borrow::Borrow, marker::PhantomData};

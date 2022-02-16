@@ -26,7 +26,7 @@ use axia_primitives::v1::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
 use kvdb::KeyValueDB;
-use axc_scale_codec::Error as CodecError;
+use axia_scale_codec::Error as CodecError;
 
 use std::{
 	sync::Arc,

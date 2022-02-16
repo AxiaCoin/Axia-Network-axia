@@ -53,14 +53,14 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 /// `construct_runtime`, so that we maintain SCALE-compatibility.
 ///
 /// See: https://github.com/axia/axia/blob/master/runtime/alphanet/src/lib.rs
-#[derive(axc_scale_codec::Encode, axc_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(axia_scale_codec::Encode, axia_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
 pub enum Call {
 	/// BetaNet bridge pallet.
 	#[codec(index = 40)]
 	BridgeGrandpaBetaNet(BridgeGrandpaBetaNetCall),
 }
 
-#[derive(axc_scale_codec::Encode, axc_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(axia_scale_codec::Encode, axia_scale_codec::Decode, Debug, PartialEq, Eq, Clone)]
 #[allow(non_camel_case_types)]
 pub enum BridgeGrandpaBetaNetCall {
 	#[codec(index = 0)]

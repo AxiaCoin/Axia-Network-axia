@@ -23,7 +23,7 @@ use futures::{
 	future::{self, BoxFuture},
 };
 use overseer::TimeoutExt;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use axia_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},

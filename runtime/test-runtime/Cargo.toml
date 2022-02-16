@@ -7,7 +7,7 @@ build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
@@ -83,7 +83,7 @@ std = [
 	"bitvec/std",
 	"primitives/std",
 	"rustc-hex/std",
-	"axc-scale-codec/std",
+	"axia-scale-codec/std",
 	"scale-info/std",
 	"inherents/std",
 	"sp-core/std",

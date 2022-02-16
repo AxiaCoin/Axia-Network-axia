@@ -27,7 +27,7 @@ use axia_primitives::v1::BlockNumber;
 
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
-use axc_scale_codec::{Decode, Encode, Error as CodecError};
+use axia_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
 use crate::metrics::Metrics;

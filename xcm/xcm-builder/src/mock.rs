@@ -28,7 +28,7 @@ pub use frame_support::{
 	traits::{Contains, Get, IsInVec},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-pub use axc_scale_codec::{Decode, Encode};
+pub use axia_scale_codec::{Decode, Encode};
 pub use sp_std::{
 	cell::RefCell,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},

@@ -17,7 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// A global identifier of an account-bearing consensus system.

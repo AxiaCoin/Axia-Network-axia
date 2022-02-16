@@ -1,7 +1,7 @@
 use super::*;
 
 use futures::{channel::oneshot, future::BoxFuture};
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use std::collections::BTreeMap;
 
 use axia_node_primitives::BlockWeight;

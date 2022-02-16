@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 axia-cli = { path = "cli", features = [ "axiatest-native", "alphanet-native", "betanet-native" ]  }
 color-eyre = { version = "0.5.11", default-features = false }
-axc-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
+axia-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
 assert_cmd = "1.0.2"

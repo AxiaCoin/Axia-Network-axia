@@ -5,7 +5,7 @@ authors = ["AXIA Technologies <admin@axiacoin.network>"]
 edition = "2018"
 
 [dependencies]
-codec = { package = "axc-scale-codec", version = "2.0.0" }
+codec = { package = "axia-scale-codec", version = "2.0.0" }
 tokio = { version = "1.12", features = ["macros"] }
 log = "0.4.11"
 env_logger = "0.9.0"
@@ -41,7 +41,7 @@ axia-runtime = { path = "../../runtime/axia" }
 axiatest-runtime = { path = "../../runtime/axiatest" }
 alphanet-runtime = { path = "../../runtime/alphanet" }
 
-sub-tokens = { git = "https://github.com/axctech/axlib-debug-kit", branch = "master" }
+sub-tokens = { git = "https://github.com/axiatech/axlib-debug-kit", branch = "master" }
 
 [dev-dependencies]
 sp-version = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }

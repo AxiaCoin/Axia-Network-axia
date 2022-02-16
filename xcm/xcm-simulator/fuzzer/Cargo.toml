@@ -6,7 +6,7 @@ description = "Examples of xcm-simulator usage."
 edition = "2018"
 
 [dependencies]
-codec = { package = "axc-scale-codec", version = "2.0.0" }
+codec = { package = "axia-scale-codec", version = "2.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "1.0", features = ["derive"] }
 

@@ -17,7 +17,7 @@
 use futures::{channel::oneshot, prelude::Future};
 use thiserror::Error;
 
-use axc_scale_codec::{Decode, Encode, Error as DecodingError};
+use axia_scale_codec::{Decode, Encode, Error as DecodingError};
 
 use sc_network as network;
 use sc_network::PeerId;

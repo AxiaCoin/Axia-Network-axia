@@ -15,6 +15,6 @@ axia-primitives = { path = "../../../primitives" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-axc-scale-codec = "2.3.1"
+axia-scale-codec = "2.3.1"
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
 sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }

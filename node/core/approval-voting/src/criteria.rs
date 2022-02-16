@@ -16,7 +16,7 @@
 
 //! Assignment criteria VRF generation and checking.
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };

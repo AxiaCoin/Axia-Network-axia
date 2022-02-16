@@ -29,7 +29,7 @@ use frame_support::{
 	weights::Weight,
 };
 pub use pallet::*;
-use axc_scale_codec::Decode;
+use axia_scale_codec::Decode;
 use primitives::v1::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};

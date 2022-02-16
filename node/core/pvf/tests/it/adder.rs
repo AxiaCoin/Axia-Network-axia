@@ -16,7 +16,7 @@
 
 use super::TestHost;
 use adder::{hash_state, BlockData, HeadData};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_allychain::primitives::{
 	BlockData as GenericBlockData, HeadData as GenericHeadData, RelayChainBlockNumber,
 	ValidationParams,

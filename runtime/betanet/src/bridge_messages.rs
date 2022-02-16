@@ -357,7 +357,7 @@ mod at_wococo {
 mod tests {
 	use super::*;
 	use bridge_runtime_common::messages;
-	use axc_scale_codec::Encode;
+	use axia_scale_codec::Encode;
 
 	#[test]
 	fn ensure_betanet_messages_weights_are_correct() {

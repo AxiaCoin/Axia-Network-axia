@@ -30,7 +30,7 @@ use async_std::{
 };
 use futures::FutureExt;
 use futures_timer::Delay;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_allychain::primitives::ValidationResult;
 use std::time::{Duration, Instant};
 

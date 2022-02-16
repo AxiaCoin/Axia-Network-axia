@@ -101,7 +101,7 @@ pub use axia_node_metrics::{
 	Metronome,
 };
 
-use axc_util_mem::MemoryAllocationTracker;
+use axia_util_mem::MemoryAllocationTracker;
 
 pub use axia_overseer_gen as gen;
 pub use axia_overseer_gen::{

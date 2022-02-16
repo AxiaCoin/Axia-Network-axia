@@ -34,7 +34,7 @@ use sp_std::{prelude::*, result};
 
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},

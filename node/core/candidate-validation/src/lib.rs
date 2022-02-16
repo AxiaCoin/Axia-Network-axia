@@ -44,7 +44,7 @@ use axia_primitives::v1::{
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 
 use futures::{channel::oneshot, prelude::*};
 

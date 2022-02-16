@@ -21,7 +21,7 @@
 use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
 use frame_system::pallet_prelude::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;

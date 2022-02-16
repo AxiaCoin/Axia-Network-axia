@@ -17,7 +17,7 @@
 //! Version 1 of the DB schema.
 
 use kvdb::{DBTransaction, KeyValueDB};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_node_primitives::approval::{AssignmentCert, DelayTranche};
 use axia_node_subsystem::{SubsystemError, SubsystemResult};
 use axia_primitives::v1::{
@@ -230,7 +230,7 @@ impl From<Tick> for crate::Tick {
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum Error {
 	Io(std::io::Error),
-	InvalidDecoding(axc_scale_codec::Error),
+	InvalidDecoding(axia_scale_codec::Error),
 }
 
 impl std::error::Error for Error {}

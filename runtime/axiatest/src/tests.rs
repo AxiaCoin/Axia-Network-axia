@@ -19,7 +19,7 @@
 use crate::*;
 use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 use pallet_transaction_payment::Multiplier;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
 

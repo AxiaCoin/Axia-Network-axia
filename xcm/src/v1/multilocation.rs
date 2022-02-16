@@ -18,7 +18,7 @@
 
 use super::Junction;
 use core::{convert::TryFrom, mem, result};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// A relative path between state-bearing consensus systems.
@@ -774,7 +774,7 @@ impl TryFrom<MultiLocation> for Junctions {
 mod tests {
 	use super::{Ancestor, AncestorThen, Junctions::*, MultiLocation, Parent, ParentThen};
 	use crate::opaque::v1::{Junction::*, NetworkId::Any};
-	use axc_scale_codec::{Decode, Encode};
+	use axia_scale_codec::{Decode, Encode};
 
 	#[test]
 	fn encode_and_decode_works() {

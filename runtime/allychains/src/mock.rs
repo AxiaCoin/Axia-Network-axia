@@ -24,7 +24,7 @@ use crate::{
 };
 use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
 use frame_support_test::TestRandomness;
-use axc_scale_codec::Decode;
+use axia_scale_codec::Decode;
 use primitives::v1::{
 	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex,
 };

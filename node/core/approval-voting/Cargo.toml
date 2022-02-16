@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.17"
 futures-timer = "3.0.2"
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
 tracing = "0.1.29"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 lru = "0.7"

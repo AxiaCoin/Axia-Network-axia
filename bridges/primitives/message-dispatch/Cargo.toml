@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 bp-runtime = { path = "../runtime", default-features = false }
-codec = { package = "axc-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "axia-scale-codec", version = "2.0.0", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 
 # Axlib Dependencies

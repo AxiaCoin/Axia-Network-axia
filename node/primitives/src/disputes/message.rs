@@ -21,7 +21,7 @@
 
 use thiserror::Error;
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use axia_primitives::v1::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,

@@ -25,7 +25,7 @@ use axia_primitives::v1::{
 use std::sync::Arc;
 
 use kvdb::{DBTransaction, KeyValueDB};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use crate::{
 	real::{
@@ -160,7 +160,7 @@ pub enum Error {
 	#[error(transparent)]
 	Io(#[from] std::io::Error),
 	#[error(transparent)]
-	Codec(#[from] axc_scale_codec::Error),
+	Codec(#[from] axia_scale_codec::Error),
 }
 
 /// Result alias for DB errors.

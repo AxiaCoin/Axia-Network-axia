@@ -20,7 +20,7 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
@@ -1051,7 +1051,7 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::HrmpOpenChannelRequestsList::append(channel_id);
 
 		let notification_bytes = {
-			use axc_scale_codec::Encode as _;
+			use axia_scale_codec::Encode as _;
 			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
 			VersionedXcm::from(Xcm(vec![HrmpNewChannelOpenRequest {
@@ -1110,7 +1110,7 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::HrmpAcceptedChannelRequestCount::insert(&origin, accepted_cnt + 1);
 
 		let notification_bytes = {
-			use axc_scale_codec::Encode as _;
+			use axia_scale_codec::Encode as _;
 			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 			let xcm = Xcm(vec![HrmpChannelAccepted { recipient: u32::from(origin) }]);
 			VersionedXcm::from(xcm).encode()
@@ -1177,7 +1177,7 @@ impl<T: Config> Pallet<T> {
 
 		let config = <configuration::Pallet<T>>::config();
 		let notification_bytes = {
-			use axc_scale_codec::Encode as _;
+			use axia_scale_codec::Encode as _;
 			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
 			VersionedXcm::from(Xcm(vec![HrmpChannelClosing {

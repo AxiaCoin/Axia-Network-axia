@@ -20,7 +20,7 @@ use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v0::Junction as Junction0;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
-use axc_scale_codec::{self, Decode, Encode};
+use axia_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
 /// A single item in a path to describe the relative location of a consensus system.

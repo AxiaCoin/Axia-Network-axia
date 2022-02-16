@@ -46,7 +46,7 @@ use futures::{
 	select,
 	stream::{SelectAll, Stream},
 };
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use pin_project::pin_project;
 use axia_node_jaeger as jaeger;
 use axia_primitives::v1::{

@@ -22,7 +22,7 @@
 	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
 )]
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use tiny_keccak::{Hasher as _, Keccak};
 
 #[cfg(not(feature = "std"))]

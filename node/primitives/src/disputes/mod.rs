@@ -16,7 +16,7 @@
 
 use std::convert::TryInto;
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use sp_application_crypto::AppKey;
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};

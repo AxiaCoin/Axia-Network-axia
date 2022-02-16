@@ -23,7 +23,7 @@ use core::{
 	convert::{TryFrom, TryInto},
 	result,
 };
-use axc_scale_codec::{self, Decode, Encode};
+use axia_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
 pub use crate::v1::AssetInstance;

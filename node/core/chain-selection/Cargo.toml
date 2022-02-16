@@ -15,7 +15,7 @@ axia-node-subsystem = { path = "../../subsystem" }
 axia-node-subsystem-util = { path = "../../subsystem-util" }
 kvdb = "0.10.0"
 thiserror = "1.0.30"
-axc-scale-codec = "2"
+axia-scale-codec = "2"
 
 [dev-dependencies]
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

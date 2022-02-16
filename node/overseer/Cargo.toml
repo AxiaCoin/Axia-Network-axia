@@ -18,7 +18,7 @@ axia-primitives = { path = "../../primitives" }
 axia-overseer-gen = { path = "./overseer-gen" }
 tracing = "0.1.29"
 lru = "0.7"
-axc-util-mem = { version = ">= 0.10.1", default-features = false }
+axia-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }

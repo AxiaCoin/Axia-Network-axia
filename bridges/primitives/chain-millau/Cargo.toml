@@ -16,7 +16,7 @@ fixed-hash = { version = "0.7.0", default-features = false }
 hash256-std-hasher = { version = "0.15.2", default-features = false }
 impl-codec = { version = "0.5.1", default-features = false }
 impl-serde = { version = "0.3.1", optional = true }
-axc-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
+axia-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 # Axlib Based Dependencies
@@ -41,7 +41,7 @@ std = [
 	"hash256-std-hasher/std",
 	"impl-codec/std",
 	"impl-serde",
-	"axc-util-mem/std",
+	"axia-util-mem/std",
 	"serde",
 	"sp-api/std",
 	"sp-core/std",

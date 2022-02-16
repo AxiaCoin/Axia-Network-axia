@@ -29,7 +29,7 @@ use core::{
 	result::Result,
 };
 use derivative::Derivative;
-use axc_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use axia_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use scale_info::TypeInfo;
 
 pub mod v0;

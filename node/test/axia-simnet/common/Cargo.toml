@@ -32,7 +32,7 @@ axia-service = { path = "../../../../node/service" }
 axia-runtime = { path = "../../../../runtime/axia" }
 axia-runtime-common = { path = "../../../../runtime/common" }
 
-codec = { package = "axc-scale-codec", version = "2.0.0" }
+codec = { package = "axia-scale-codec", version = "2.0.0" }
 structopt = "0.3.23"
 
 [dev-dependencies]

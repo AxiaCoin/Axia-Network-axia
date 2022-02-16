@@ -61,7 +61,7 @@ use frame_support::{
 	Identity, PalletId,
 };
 pub use pallet::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::Id as ParaId;
 use scale_info::TypeInfo;
 use sp_runtime::{

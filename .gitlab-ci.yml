@@ -552,7 +552,7 @@ publish-rustdoc:
 
 #### stage:                        deploy
 
-deploy-axcsync-axiatest:
+deploy-axiasync-axiatest:
   stage:                           deploy
   rules:
     # former .rules-build

@@ -89,7 +89,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		data: &[u8],
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
-		use axc_scale_codec::DecodeLimit;
+		use axia_scale_codec::DecodeLimit;
 		use xcm::{
 			latest::{Error as XcmError, Junction, Xcm},
 			VersionedXcm,
@@ -952,7 +952,7 @@ pub(crate) mod tests {
 		// Make sure that the relay dispatch queue size storage entry is accessible via well known
 		// keys and is decodable into a (u32, u32).
 
-		use axc_scale_codec::Decode as _;
+		use axia_scale_codec::Decode as _;
 		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(228);

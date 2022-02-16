@@ -26,7 +26,7 @@ use std::{convert::TryFrom, pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
-use axc_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use axia_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use sp_consensus_babe::{

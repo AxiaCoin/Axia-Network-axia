@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use super::{MultiLocation, Xcm};
@@ -195,7 +195,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # Example
 /// ```rust
 /// # use xcm::v1::{MultiLocation, Xcm, Junction, Junctions, Error, OriginKind, SendXcm, Result, Parent};
-/// # use axc_scale_codec::Encode;
+/// # use axia_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;

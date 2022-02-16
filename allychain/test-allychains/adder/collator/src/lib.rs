@@ -18,7 +18,7 @@
 
 use futures::channel::oneshot;
 use futures_timer::Delay;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_node_primitives::{
 	Collation, CollationResult, CollationSecondedSignal, CollatorFn, PoV, Statement,
 };

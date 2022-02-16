@@ -21,7 +21,7 @@ use futures::{
 	StreamExt,
 };
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId};
 

@@ -26,7 +26,7 @@
 use crate::{configuration, initializer::SessionChangeNotification, shared};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
 	ValidationCode, ValidationCodeHash,

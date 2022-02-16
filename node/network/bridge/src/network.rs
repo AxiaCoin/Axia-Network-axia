@@ -19,7 +19,7 @@ use std::{borrow::Cow, collections::HashSet, sync::Arc};
 use async_trait::async_trait;
 use futures::{prelude::*, stream::BoxStream};
 
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 
 use sc_network::{
 	config::parse_addr, multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected,

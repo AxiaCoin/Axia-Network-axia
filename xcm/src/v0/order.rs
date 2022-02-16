@@ -23,7 +23,7 @@ use core::{
 	result,
 };
 use derivative::Derivative;
-use axc_scale_codec::{self, Decode, Encode};
+use axia_scale_codec::{self, Decode, Encode};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode, scale_info::TypeInfo)]

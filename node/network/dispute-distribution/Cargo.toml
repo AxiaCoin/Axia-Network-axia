@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.17"
 tracing = "0.1.29"
 derive_more = "0.99.14"
-axc-scale-codec = { version = "2.3.1", features = ["std"] }
+axia-scale-codec = { version = "2.3.1", features = ["std"] }
 axia-primitives = { path = "../../../primitives" }
 axia-erasure-coding = { path = "../../../erasure-coding" }
 axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }

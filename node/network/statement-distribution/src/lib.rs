@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use error::{log_error, FatalResult, NonFatalResult};
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 
 use axia_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},

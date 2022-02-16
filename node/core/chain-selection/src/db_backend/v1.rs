@@ -41,7 +41,7 @@ use axia_node_primitives::BlockWeight;
 use axia_primitives::v1::{BlockNumber, Hash};
 
 use kvdb::{DBTransaction, KeyValueDB};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use std::sync::Arc;
 

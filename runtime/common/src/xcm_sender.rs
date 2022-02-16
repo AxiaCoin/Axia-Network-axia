@@ -16,7 +16,7 @@
 
 //! XCM sender for relay chain.
 
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use runtime_allychains::{configuration, dmp};
 use sp_std::marker::PhantomData;
 use xcm::latest::prelude::*;

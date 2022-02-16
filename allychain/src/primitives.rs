@@ -20,7 +20,7 @@
 use sp_std::vec::Vec;
 
 use frame_support::weights::Weight;
-use axc_scale_codec::{CompactAs, Decode, Encode};
+use axia_scale_codec::{CompactAs, Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use sp_core::bytes;
 
 #[cfg(feature = "std")]
-use axc_util_mem::MallocSizeOf;
+use axia_util_mem::MallocSizeOf;
 
 use axia_core_primitives::{Hash, OutboundHrmpMessage};
 
@@ -288,12 +288,12 @@ pub trait AccountIdConversion<AccountId>: Sized {
 // TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
 // #360
 struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> axc_scale_codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, axc_scale_codec::Error> {
+impl<'a> axia_scale_codec::Input for TrailingZeroInput<'a> {
+	fn remaining_len(&mut self) -> Result<Option<usize>, axia_scale_codec::Error> {
 		Ok(None)
 	}
 
-	fn read(&mut self, into: &mut [u8]) -> Result<(), axc_scale_codec::Error> {
+	fn read(&mut self, into: &mut [u8]) -> Result<(), axia_scale_codec::Error> {
 		let len = into.len().min(self.0.len());
 		into[..len].copy_from_slice(&self.0[..len]);
 		for i in &mut into[len..] {

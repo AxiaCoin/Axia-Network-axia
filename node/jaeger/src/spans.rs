@@ -83,7 +83,7 @@
 //! # }
 //! ```
 
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use axia_node_primitives::PoV;
 use axia_primitives::v1::{
 	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,

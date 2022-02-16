@@ -20,9 +20,9 @@
 use sp_std::{cmp::Ordering, prelude::*};
 
 use bitvec::vec::BitVec;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
-use axc_util_mem::{MallocSizeOf, MallocSizeOfOps};
+use axia_util_mem::{MallocSizeOf, MallocSizeOfOps};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ use inherents::InherentIdentifier;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 
-pub use axc_scale_codec::Compact;
+pub use axia_scale_codec::Compact;
 pub use axia_core_primitives::*;
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, IdentifyAccount, Verify};
 
@@ -695,25 +695,25 @@ impl From<CompactStatement> for CompactStatementInner {
 	}
 }
 
-impl axc_scale_codec::Encode for CompactStatement {
+impl axia_scale_codec::Encode for CompactStatement {
 	fn size_hint(&self) -> usize {
 		// magic + discriminant + payload
 		4 + 1 + 32
 	}
 
-	fn encode_to<T: axc_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+	fn encode_to<T: axia_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
 		dest.write(&BACKING_STATEMENT_MAGIC);
 		CompactStatementInner::from(self.clone()).encode_to(dest)
 	}
 }
 
-impl axc_scale_codec::Decode for CompactStatement {
-	fn decode<I: axc_scale_codec::Input>(
+impl axia_scale_codec::Decode for CompactStatement {
+	fn decode<I: axia_scale_codec::Input>(
 		input: &mut I,
-	) -> Result<Self, axc_scale_codec::Error> {
+	) -> Result<Self, axia_scale_codec::Error> {
 		let maybe_magic = <[u8; 4]>::decode(input)?;
 		if maybe_magic != BACKING_STATEMENT_MAGIC {
-			return Err(axc_scale_codec::Error::from("invalid magic string"))
+			return Err(axia_scale_codec::Error::from("invalid magic string"))
 		}
 
 		Ok(match CompactStatementInner::decode(input)? {

@@ -10,7 +10,7 @@ ansi_term = "0.12"
 async-std = "1.9.0"
 async-trait = "0.1.42"
 clap = { version = "2.33.3", features = ["yaml"] }
-codec = { package = "axc-scale-codec", version = "2.0.0" }
+codec = { package = "axia-scale-codec", version = "2.0.0" }
 env_logger = "0.8.3"
 ethabi = { git = "https://github.com/axia/ethabi", branch = "td-eth-types-11" }
 ethabi-contract = { git = "https://github.com/axia/ethabi", branch = "td-eth-types-11" }

@@ -19,7 +19,7 @@
 pub use sp_consensus_babe::Slot;
 pub use sp_consensus_vrf::schnorrkel::{Randomness, VRFOutput, VRFProof};
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, ValidatorIndex,
 	ValidatorSignature,

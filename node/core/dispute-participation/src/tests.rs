@@ -21,7 +21,7 @@ use std::sync::Arc;
 use sp_core::testing::TaskExecutor;
 
 use super::*;
-use axc_scale_codec::Encode;
+use axia_scale_codec::Encode;
 use axia_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use axia_node_subsystem::{
 	jaeger,

@@ -22,7 +22,7 @@ use frame_support::{
 	weights::Weight,
 };
 pub use pallet::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::ValidityError;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
@@ -692,7 +692,7 @@ mod tests {
 	use hex_literal::hex;
 	use secp_utils::*;
 
-	use axc_scale_codec::Encode;
+	use axia_scale_codec::Encode;
 	use sp_core::H256;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.

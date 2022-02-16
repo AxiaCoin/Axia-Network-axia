@@ -24,7 +24,7 @@ use crate::{
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
 	ConsensusLog, DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,

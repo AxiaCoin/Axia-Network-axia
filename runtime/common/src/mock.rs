@@ -18,7 +18,7 @@
 
 use crate::traits::Registrar;
 use frame_support::dispatch::{DispatchError, DispatchResult};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
 use sp_runtime::traits::SaturatedConversion;
 use std::{cell::RefCell, collections::HashMap};

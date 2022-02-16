@@ -16,7 +16,7 @@
 
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_allychain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,

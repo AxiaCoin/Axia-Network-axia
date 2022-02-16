@@ -29,7 +29,7 @@ use std::{
 use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
 use kvdb::{DBTransaction, KeyValueDB};
-use axc_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use axia_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use axia_node_primitives::{AvailableData, ErasureChunk};

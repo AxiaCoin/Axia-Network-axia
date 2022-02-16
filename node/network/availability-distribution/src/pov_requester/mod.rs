@@ -115,7 +115,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{executor, future};
 
-	use axc_scale_codec::Encode;
+	use axia_scale_codec::Encode;
 	use sp_core::testing::TaskExecutor;
 
 	use axia_node_primitives::BlockData;

@@ -20,7 +20,7 @@ slotmap = "1.0"
 tracing = "0.1.29"
 pin-project = "1.0.8"
 rand = "0.8.3"
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 axia-allychain = { path = "../../../allychain" }
 axia-core-primitives = { path = "../../../core-primitives" }
 axia-node-subsystem-util = { path = "../../subsystem-util"}

@@ -15,7 +15,7 @@
 // along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Client, FullBackend};
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_primitives::v1::{Block, InherentData as AllychainsInherentData};
 use axia_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};

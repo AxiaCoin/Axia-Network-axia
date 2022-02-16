@@ -12,7 +12,7 @@ thiserror = "1.0.30"
 tracing = "0.1.29"
 bitvec = "0.20.1"
 
-axc-scale-codec = { version = "2.3.1", features = ["derive"] }
+axia-scale-codec = { version = "2.3.1", features = ["derive"] }
 erasure = { package = "axia-erasure-coding", path = "../../../erasure-coding" }
 axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
 axia-node-subsystem-util = { path = "../../subsystem-util" }

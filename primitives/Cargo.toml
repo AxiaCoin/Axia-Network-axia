@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.130", optional = true, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["bit-vec", "derive"] }
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
 inherents = { package = "sp-inherents", git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
@@ -27,14 +27,14 @@ trie = { package = "sp-trie", git = "https://github.com/axia-tech/axia-core", de
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
 hex-literal = "0.3.3"
-axc-util-mem = { version = "0.10.0", default-features = false, optional = true }
+axia-util-mem = { version = "0.10.0", default-features = false, optional = true }
 
 
 [features]
 default = ["std"]
 std = [
 	"application-crypto/std",
-	"axc-scale-codec/std",
+	"axia-scale-codec/std",
 	"scale-info/std",
 	"primitives/std",
 	"inherents/std",
@@ -50,7 +50,7 @@ std = [
 	"sp-arithmetic/std",
 	"runtime_primitives/std",
 	"serde",
-	"axc-util-mem",
+	"axia-util-mem",
 	"axia-allychain/std",
 	"axia-core-primitives/std",
 	"bitvec/std",

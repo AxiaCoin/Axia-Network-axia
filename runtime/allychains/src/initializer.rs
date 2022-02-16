@@ -29,7 +29,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::limits::BlockWeights;
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;

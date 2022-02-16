@@ -7,7 +7,7 @@ edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "axc-scale-codec", version = "2.0.0" }
+codec = { package = "axia-scale-codec", version = "2.0.0" }
 ethereum-types = "0.11.0"
 finality-grandpa = "0.14.4"
 hex = "0.4"

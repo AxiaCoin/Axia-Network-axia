@@ -10,7 +10,7 @@ async-trait = "0.1.51"
 axia-primitives = { path = "../../../primitives" }
 axia-node-primitives = { path = "../../primitives" }
 axia-node-jaeger = { path = "../../jaeger" }
-axc-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
 sc-authority-discovery = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
 strum = { version = "0.22", features = ["derive"] }

@@ -203,7 +203,7 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
-	use axc_scale_codec::Decode as _;
+	use axia_scale_codec::Decode as _;
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
 	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
 		.expect("storage root must decode to the Hash type; qed");

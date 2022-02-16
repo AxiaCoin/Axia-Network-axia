@@ -16,7 +16,7 @@
 
 //! Requests and responses as sent over the wire for the individual protocols.
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 
 use axia_node_primitives::{
 	AvailableData, DisputeMessage, ErasureChunk, PoV, Proof, UncheckedDisputeMessage,

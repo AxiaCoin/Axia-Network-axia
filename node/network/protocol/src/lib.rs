@@ -19,7 +19,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use axc_scale_codec::{Decode, Encode};
+use axia_scale_codec::{Decode, Encode};
 use axia_primitives::v1::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
@@ -281,7 +281,7 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use axc_scale_codec::{Decode, Encode};
+	use axia_scale_codec::{Decode, Encode};
 	use std::convert::TryFrom;
 
 	use axia_primitives::v1::{

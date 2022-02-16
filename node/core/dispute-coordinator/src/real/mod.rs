@@ -33,7 +33,7 @@ use std::{
 
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
-use axc_scale_codec::{Decode, Encode, Error as CodecError};
+use axia_scale_codec::{Decode, Encode, Error as CodecError};
 use axia_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
