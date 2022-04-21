@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
@@ -264,11 +264,20 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
+	pub(crate) fn subsystem_generic_types(&self) -> Vec<Ident> {
+		self.subsystems
+			.iter()
+			.filter(|ssf| !ssf.wip)
+			.map(|sff| sff.generic.clone())
+			.collect::<Vec<_>>()
+	}
+
+	pub(crate) fn baggage(&self) -> &[BaggageField] {
+		self.baggage.as_slice()
+	}
+
 	pub(crate) fn baggage_names(&self) -> Vec<Ident> {
 		self.baggage.iter().map(|bag| bag.field_name.clone()).collect::<Vec<_>>()
-	}
-	pub(crate) fn baggage_types(&self) -> Vec<Path> {
-		self.baggage.iter().map(|bag| bag.field_ty.clone()).collect::<Vec<_>>()
 	}
 	pub(crate) fn baggage_decl(&self) -> Vec<TokenStream> {
 		self.baggage
@@ -278,15 +287,6 @@ impl OverseerInfo {
 				quote! { #vis #field_name: #field_ty }
 			})
 			.collect::<Vec<TokenStream>>()
-	}
-
-	/// Generic types per subsystem, as defined by the user.
-	pub(crate) fn builder_generic_types(&self) -> Vec<Ident> {
-		self.subsystems
-			.iter()
-			.filter(|ssf| !ssf.wip)
-			.map(|sff| sff.generic.clone())
-			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {

@@ -1,12 +1,12 @@
 [package]
 name = "axia-node-core-chain-selection"
 description = "Chain Selection Subsystem"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.21"
 futures-timer = "3"
 tracing = "0.1.29"
 axia-primitives = { path = "../../../primitives" }
@@ -19,7 +19,7 @@ axia-scale-codec = "2"
 
 [dev-dependencies]
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 parking_lot = "0.11"
 assert_matches = "1"
 kvdb-memorydb = "0.10.0"

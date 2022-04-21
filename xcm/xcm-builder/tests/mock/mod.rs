@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -23,7 +23,7 @@ use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
 
-use axia_allychain::primitives::Id as ParaId;
+use axia_allychain::primitives::Id as AllyId;
 use axia_runtime_allychains::{configuration, origin, shared};
 use xcm::latest::{opaque, prelude::*};
 use xcm_executor::XcmExecutor;
@@ -53,7 +53,7 @@ impl SendXcm for TestSendXcm {
 	}
 }
 
-// copied from axiatest constants
+// copied from axctest constants
 pub const UNITS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = UNITS / 30_000;
 
@@ -85,6 +85,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -111,16 +112,16 @@ impl configuration::Config for Runtime {
 	type WeightInfo = configuration::TestWeightInfo;
 }
 
-// aims to closely emulate the AXIATEST XcmConfig
+// aims to closely emulate the AxiaTest XcmConfig
 parameter_types! {
 	pub const AxctLocation: MultiLocation = MultiLocation::here();
-	pub const AXIATESTNetwork: NetworkId = NetworkId::AXIATEST;
+	pub const AxiaTestNetwork: NetworkId = NetworkId::AxiaTest;
 	pub Ancestry: MultiLocation = Here.into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 pub type SovereignAccountOf =
-	(ChildAllychainConvertsVia<ParaId, AccountId>, AccountId32Aliases<AXIATESTNetwork, AccountId>);
+	(ChildAllychainConvertsVia<AllyId, AccountId>, AccountId32Aliases<AxiaTestNetwork, AccountId>);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	Balances,
@@ -133,8 +134,8 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildAllychainAsNative<origin::Origin, Origin>,
-	SignedAccountId32AsNative<AXIATESTNetwork, Origin>,
-	ChildSystemAllychainAsSuperuser<ParaId, Origin>,
+	SignedAccountId32AsNative<AxiaTestNetwork, Origin>,
+	ChildSystemAllychainAsSuperuser<AllyId, Origin>,
 );
 
 parameter_types! {
@@ -146,15 +147,15 @@ pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Unused/Untested
-	AllowUnpaidExecutionFrom<IsChildSystemAllychain<ParaId>>,
+	AllowUnpaidExecutionFrom<IsChildSystemAllychain<AllyId>>,
 );
 
 parameter_types! {
-	pub const AXIATESTForStatemint: (MultiAssetFilter, MultiLocation) =
+	pub const AxiaTestForStatemine: (MultiAssetFilter, MultiLocation) =
 		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Allychain(1000)).into());
 	pub const MaxInstructions: u32 = 100;
 }
-pub type TrustedTeleporters = (xcm_builder::Case<AXIATESTForStatemint>,);
+pub type TrustedTeleporters = (xcm_builder::Case<AxiaTestForStatemine>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -174,7 +175,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AXIATESTNetwork>;
+pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AxiaTestNetwork>;
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
@@ -212,7 +213,7 @@ construct_runtime!(
 	}
 );
 
-pub fn axiatest_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
+pub fn axctest_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> { balances }

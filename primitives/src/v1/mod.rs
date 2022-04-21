@@ -1,25 +1,25 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! `V1` Primitives.
 
 use bitvec::vec::BitVec;
 use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::prelude::*;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -63,6 +63,12 @@ pub use sp_staking::SessionIndex;
 mod signed;
 pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
+mod metrics;
+pub use metrics::{
+	metric_definitions, RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues,
+	RuntimeMetricLabels, RuntimeMetricOp, RuntimeMetricUpdate,
+};
+
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
 	use super::{HrmpChannelId, Id};
@@ -95,21 +101,21 @@ pub mod well_known_keys {
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
 
-	/// The upward message dispatch queue for the given para id.
+	/// The upward message dispatch queue for the given ally id.
 	///
 	/// The storage entry stores a tuple of two values:
 	///
 	/// - `count: u32`, the number of messages currently in the queue for given para,
 	/// - `total_size: u32`, the total size of all messages in the queue.
-	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
+	pub fn relay_dispatch_queue_size(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -134,16 +140,16 @@ pub mod well_known_keys {
 
 	/// The list of inbound channels for the given para.
 	///
-	/// The storage entry stores a `Vec<ParaId>`
-	pub fn hrmp_ingress_channel_index(para_id: Id) -> Vec<u8> {
+	/// The storage entry stores a `Vec<AllyId>`
+	pub fn hrmp_ingress_channel_index(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -151,16 +157,16 @@ pub mod well_known_keys {
 
 	/// The list of outbound channels for the given para.
 	///
-	/// The storage entry stores a `Vec<ParaId>`
-	pub fn hrmp_egress_channel_index(para_id: Id) -> Vec<u8> {
+	/// The storage entry stores a `Vec<AllyId>`
+	pub fn hrmp_egress_channel_index(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -170,15 +176,15 @@ pub mod well_known_keys {
 	///
 	/// The storage entry stores a `Hash`. This is axia hash which is at the moment
 	/// `blake2b-256`.
-	pub fn dmq_mqc_head(para_id: Id) -> Vec<u8> {
+	pub fn dmq_mqc_head(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -188,15 +194,15 @@ pub mod well_known_keys {
 	/// code upgrade.
 	///
 	/// The storage entry stores a value of `UpgradeGoAhead` type.
-	pub fn upgrade_go_ahead_signal(para_id: Id) -> Vec<u8> {
+	pub fn upgrade_go_ahead_signal(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa1949e94c040f5e73d9b7addd6cb603d15d3"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -206,15 +212,15 @@ pub mod well_known_keys {
 	/// relay-parent.
 	///
 	/// The storage entry stores a value of `UpgradeRestriction` type.
-	pub fn upgrade_restriction_signal(para_id: Id) -> Vec<u8> {
+	pub fn upgrade_restriction_signal(ally_id: Id) -> Vec<u8> {
 		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa194f27bbb460270642b5bcaf032ea04d56a"];
 
-		para_id.using_encoded(|para_id: &[u8]| {
+		ally_id.using_encoded(|ally_id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
-				.chain(twox_64(para_id).iter())
-				.chain(para_id.iter())
+				.chain(twox_64(ally_id).iter())
+				.chain(ally_id.iter())
 				.cloned()
 				.collect()
 		})
@@ -235,6 +241,7 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// * initial genesis for the Allychains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a code decompression bomb in the client
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 
 /// Maximum head data size we support right now.
@@ -242,6 +249,7 @@ pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 /// Used for:
 /// * initial genesis for the Allychains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 
 /// Maximum PoV size we support right now.
@@ -250,6 +258,7 @@ pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
 /// * initial genesis for the Allychains configuration
 /// * checking updates to this stored runtime configuration do not exceed this limit
 /// * when detecting a PoV decompression bomb in the client
+// NOTE: This value is used in the runtime so be careful when changing it.
 pub const MAX_POV_SIZE: u32 = 5 * 1024 * 1024;
 
 // The public key of a keypair used by a validator for determining assignments
@@ -285,7 +294,7 @@ pub type CandidateIndex = u32;
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
-	para_id: &Id,
+	ally_id: &Id,
 	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
 	validation_code_hash: &ValidationCodeHash,
@@ -294,7 +303,7 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	let mut payload = [0u8; 132];
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
-	u32::from(*para_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
+	u32::from(*ally_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
 	payload[36..68].copy_from_slice(persisted_validation_data_hash.as_ref());
 	payload[68..100].copy_from_slice(pov_hash.as_ref());
 	payload[100..132].copy_from_slice(validation_code_hash.as_ref());
@@ -304,7 +313,7 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 
 fn check_collator_signature<H: AsRef<[u8]>>(
 	relay_parent: &H,
-	para_id: &Id,
+	ally_id: &Id,
 	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
 	validation_code_hash: &ValidationCodeHash,
@@ -313,7 +322,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 ) -> Result<(), ()> {
 	let payload = collator_signature_payload(
 		relay_parent,
-		para_id,
+		ally_id,
 		persisted_validation_data_hash,
 		pov_hash,
 		validation_code_hash,
@@ -327,11 +336,11 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
-	/// The ID of the para this is a candidate for.
-	pub para_id: Id,
+	/// The ID of the ally this is a candidate for.
+	pub ally_id: Id,
 	/// The hash of the relay-chain block this is executed in the context of.
 	pub relay_parent: H,
 	/// The collator's sr25519 public key.
@@ -347,7 +356,7 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// Signature on blake2-256 of components of this receipt:
 	/// The allychain index, the relay parent, the validation data hash, and the `pov_hash`.
 	pub signature: CollatorSignature,
-	/// Hash of the para header that is being generated by this candidate.
+	/// Hash of the ally header that is being generated by this candidate.
 	pub para_head: Hash,
 	/// The blake2-256 hash of the validation code bytes.
 	pub validation_code_hash: ValidationCodeHash,
@@ -358,7 +367,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 	pub fn check_collator_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
 			&self.relay_parent,
-			&self.para_id,
+			&self.ally_id,
 			&self.persisted_validation_data_hash,
 			&self.pov_hash,
 			&self.validation_code_hash,
@@ -369,8 +378,8 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 }
 
 /// A candidate-receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -393,9 +402,8 @@ impl<H> CandidateReceipt<H> {
 	}
 }
 
-/// All data pertaining to the execution of a para candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+/// All data pertaining to the execution of a ally candidate.
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
@@ -407,8 +415,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -461,16 +469,16 @@ impl PartialOrd for CommittedCandidateReceipt {
 impl Ord for CommittedCandidateReceipt {
 	fn cmp(&self, other: &Self) -> sp_std::cmp::Ordering {
 		// TODO: compare signatures or something more sane
-		// https://github.com/axia/axia/issues/222
+		// https://github.com/axiatech/axia/issues/222
 		self.descriptor()
-			.para_id
-			.cmp(&other.descriptor().para_id)
+			.ally_id
+			.cmp(&other.descriptor().ally_id)
 			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
 	}
 }
 
 /// The validation data provides information about how to create the inputs for validation of a candidate.
-/// This information is derived from the chain state and will vary from para to para, although some
+/// This information is derived from the chain state and will vary from ally to para, although some
 /// fields may be the same for every para.
 ///
 /// Since this data is used to form inputs to the validation function, it needs to be persisted by the
@@ -488,8 +496,8 @@ impl Ord for CommittedCandidateReceipt {
 ///
 /// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default, MallocSizeOf))]
 pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
@@ -509,8 +517,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -534,6 +542,8 @@ impl CandidateCommitments {
 }
 
 /// A bitfield concerning availability of backed candidates.
+///
+/// Every bit refers to an availability core index.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
@@ -558,7 +568,6 @@ pub type UncheckedSignedAvailabilityBitfields = Vec<UncheckedSignedAvailabilityB
 
 /// A backed (or backable, depending on context) candidate.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Default))]
 pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
 	pub candidate: CommittedCandidateReceipt<H>,
@@ -645,8 +654,10 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 }
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[derive(
+	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
+)]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -666,34 +677,34 @@ impl From<u32> for GroupIndex {
 	}
 }
 
-/// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct ParathreadClaim(pub Id, pub CollatorId);
+/// A claim on authoring the next block for a given allythread.
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AllythreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct ParathreadEntry {
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct AllythreadEntry {
 	/// The claim.
-	pub claim: ParathreadClaim,
+	pub claim: AllythreadClaim,
 	/// Number of retries.
 	pub retries: u32,
 }
 
 /// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
-	/// A parathread.
-	Parathread(ParathreadEntry),
+	/// A allythread.
+	Allythread(AllythreadEntry),
 	/// A allychain.
 	Allychain,
 }
 
 /// A helper data-type for tracking validator-group rotations.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct GroupRotationInfo<N = BlockNumber> {
 	/// The block number where the session started.
 	pub session_start_block: N,
@@ -780,10 +791,10 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
-	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+	// NOTE: this has no AllyId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -809,48 +820,48 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 }
 
 impl<H, N> OccupiedCore<H, N> {
-	/// Get the Para currently occupying this core.
-	pub fn para_id(&self) -> Id {
-		self.candidate_descriptor.para_id
+	/// Get the Ally currently occupying this core.
+	pub fn ally_id(&self) -> Id {
+		self.candidate_descriptor.ally_id
 	}
 }
 
 /// Information about a core which is currently occupied.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, Default, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScheduledCore {
-	/// The ID of a para scheduled.
-	pub para_id: Id,
+	/// The ID of a ally scheduled.
+	pub ally_id: Id,
 	/// The collator required to author the block, if any.
 	pub collator: Option<CollatorId>,
 }
 
 /// The state of a particular availability core.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
 	Occupied(OccupiedCore<H, N>),
-	/// The core is currently free, with a para scheduled and given the opportunity
+	/// The core is currently free, with a ally scheduled and given the opportunity
 	/// to occupy.
 	///
 	/// If a particular Collator is required to author this block, that is also present in this
 	/// variant.
 	#[codec(index = 1)]
 	Scheduled(ScheduledCore),
-	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
-	/// cores when there are no parathread blocks queued. Allychain cores will never be left idle.
+	/// The core is currently free and there is nothing scheduled. This can be the case for allythread
+	/// cores when there are no allythread blocks queued. Allychain cores will never be left idle.
 	#[codec(index = 2)]
 	Free,
 }
 
 impl<N> CoreState<N> {
-	/// If this core state has a `para_id`, return it.
-	pub fn para_id(&self) -> Option<Id> {
+	/// If this core state has a `ally_id`, return it.
+	pub fn ally_id(&self) -> Option<Id> {
 		match self {
-			Self::Occupied(ref core) => Some(core.para_id()),
-			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Occupied(ref core) => Some(core.ally_id()),
+			Self::Scheduled(ScheduledCore { ally_id, .. }) => Some(*ally_id),
 			Self::Free => None,
 		}
 	}
@@ -862,8 +873,8 @@ impl<N> CoreState<N> {
 }
 
 /// An assumption being made about the state of an occupied core.
-#[derive(Clone, Copy, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash, Debug))]
+#[derive(Clone, Copy, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, Eq, Hash))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
 	#[codec(index = 0)]
@@ -877,8 +888,8 @@ pub enum OccupiedCoreAssumption {
 }
 
 /// An even concerning a candidate.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, MallocSizeOf))]
+#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
 	/// This includes the core index the candidate is now occupying.
@@ -897,13 +908,13 @@ pub enum CandidateEvent<H = Hash> {
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	///
 	/// NOTE: There might be more authorities in the current session, than `validators` participating
 	/// in allychain consensus. See
-	/// [`max_validators`](https://github.com/axia/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148).
+	/// [`max_validators`](https://github.com/axiatech/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
 	pub validators: Vec<ValidatorId>,
@@ -912,14 +923,14 @@ pub struct SessionInfo {
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
 	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
 	/// participating in allychain consensus - see
-	/// [`max_validators`](https://github.com/axia/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148)
+	/// [`max_validators`](https://github.com/axiatech/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148)
 	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///
 	/// NOTE: There might be more authorities in the current session, than validators participating
 	/// in allychain consensus. See
-	/// [`max_validators`](https://github.com/axia/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148).
+	/// [`max_validators`](https://github.com/axiatech/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148).
 	///
 	/// Therefore:
 	/// ```ignore
@@ -947,7 +958,7 @@ pub struct SessionInfo {
 
 /// Scraped runtime backing votes and resolved disputes.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
@@ -974,72 +985,7 @@ impl ApprovalVote {
 	}
 }
 
-sp_api::decl_runtime_apis! {
-	/// The API for querying the state of allychains on-chain.
-	pub trait AllychainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
-		/// Get the current validators.
-		fn validators() -> Vec<ValidatorId>;
-
-		/// Returns the validator groups and rotation info localized based on the hypothetical child
-		///  of a block whose state  this is invoked on. Note that `now` in the `GroupRotationInfo`
-		/// should be the successor of the number of the block.
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
-
-		/// Yields information on all availability cores as relevant to the child block.
-		/// Cores are either free or occupied. Free cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState<H, N>>;
-
-		/// Yields the persisted validation data for the given `ParaId` along with an assumption that
-		/// should be used if the para currently occupies a core.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<H, N>>;
-
-		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
-
-		/// Returns the session index expected at a child of the block.
-		///
-		/// This can be used to instantiate a `SigningContext`.
-		fn session_index_for_child() -> SessionIndex;
-
-		/// Get the session info for the given session, if stored.
-		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
-
-		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
-		///
-		/// Returns `None` if either the para is not registered or the assumption is `Freed`
-		/// and the para already occupies a core.
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode>;
-
-		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
-		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
-
-		/// Get a vector of events concerning candidates that occurred within a block.
-		fn candidate_events() -> Vec<CandidateEvent<H>>;
-
-		/// Get all the pending inbound messages in the downward message queue for a para.
-		fn dmq_contents(
-			recipient: Id,
-		) -> Vec<InboundDownwardMessage<N>>;
-
-		/// Get the contents of all channels addressed to the given recipient. Channels that have no
-		/// messages in them are also included.
-		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
-
-		/// Get the validation code from its hash.
-		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
-
-		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
-	}
-}
-
-/// Custom validity errors used in AXIA while validating transactions.
+/// Custom validity errors used in Axia while validating transactions.
 #[repr(u8)]
 pub enum ValidityError {
 	/// The Ethereum signature is invalid.
@@ -1085,8 +1031,8 @@ pub struct AbridgedHostConfiguration {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum frequency at which allychains can update their validation code.
-	pub validation_upgrade_frequency: BlockNumber,
+	/// The minimum period, in blocks, between which allychains can update their validation code.
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 }
@@ -1119,7 +1065,7 @@ pub struct AbridgedHrmpChannel {
 }
 
 /// A possible upgrade restriction that prevents a allychain from performing an upgrade.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeRestriction {
 	/// There is an upgrade restriction and there are no details about its specifics nor how long
 	/// it could last.
@@ -1132,7 +1078,7 @@ pub enum UpgradeRestriction {
 ///
 /// This data type appears in the last step of the upgrade process. After the allychain observes it
 /// and reacts to it the upgrade process concludes.
-#[derive(Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum UpgradeGoAhead {
 	/// Abort the upgrade process. There is something wrong with the validation code previously
 	/// submitted by the allychain. This variant can also be used to prevent upgrades by the governance
@@ -1156,10 +1102,10 @@ pub const AXIA_ENGINE_ID: runtime_primitives::ConsensusEngineId = *b"POL1";
 /// A consensus log item for axia validation. To be used with [`AXIA_ENGINE_ID`].
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
-	/// A allychain or parathread upgraded its code.
+	/// A allychain or allythread upgraded its code.
 	#[codec(index = 1)]
 	ParaUpgradeCode(Id, ValidationCodeHash),
-	/// A allychain or parathread scheduled a code upgrade.
+	/// A allychain or allythread scheduled a code upgrade.
 	#[codec(index = 2)]
 	ParaScheduleUpgradeCode(Id, ValidationCodeHash, BlockNumber),
 	/// Governance requests to auto-approve every candidate included up to the given block
@@ -1180,8 +1126,8 @@ pub enum ConsensusLog {
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(
-		digest_item: &runtime_primitives::DigestItem<H>,
+	pub fn from_digest_item(
+		digest_item: &runtime_primitives::DigestItem,
 	) -> Result<Option<Self>, axia_scale_codec::Error> {
 		match digest_item {
 			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &AXIA_ENGINE_ID =>
@@ -1191,8 +1137,8 @@ impl ConsensusLog {
 	}
 }
 
-impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
-	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+impl From<ConsensusLog> for runtime_primitives::DigestItem {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem {
 		Self::Consensus(AXIA_ENGINE_ID, c.encode())
 	}
 }
@@ -1267,6 +1213,17 @@ impl DisputeStatement {
 			DisputeStatement::Invalid(_) => true,
 		}
 	}
+
+	/// Statement is backing statement.
+	pub fn is_backing(&self) -> bool {
+		match *self {
+			Self::Valid(ValidDisputeStatementKind::BackingSeconded(_)) |
+			Self::Valid(ValidDisputeStatementKind::BackingValid(_)) => true,
+			Self::Valid(ValidDisputeStatementKind::Explicit) |
+			Self::Valid(ValidDisputeStatementKind::ApprovalChecking) |
+			Self::Invalid(_) => false,
+		}
+	}
 }
 
 /// Different kinds of statements of validity on  a candidate.
@@ -1328,8 +1285,47 @@ pub struct DisputeStatementSet {
 	pub statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
 }
 
+impl From<CheckedDisputeStatementSet> for DisputeStatementSet {
+	fn from(other: CheckedDisputeStatementSet) -> Self {
+		other.0
+	}
+}
+
+impl AsRef<DisputeStatementSet> for DisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		&self
+	}
+}
+
 /// A set of dispute statements.
 pub type MultiDisputeStatementSet = Vec<DisputeStatementSet>;
+
+/// A _checked_ set of dispute statements.
+#[derive(Clone, PartialEq, RuntimeDebug)]
+pub struct CheckedDisputeStatementSet(DisputeStatementSet);
+
+impl AsRef<DisputeStatementSet> for CheckedDisputeStatementSet {
+	fn as_ref(&self) -> &DisputeStatementSet {
+		&self.0
+	}
+}
+
+impl core::cmp::PartialEq<DisputeStatementSet> for CheckedDisputeStatementSet {
+	fn eq(&self, other: &DisputeStatementSet) -> bool {
+		self.0.eq(other)
+	}
+}
+
+impl CheckedDisputeStatementSet {
+	/// Convert from an unchecked, the verification of correctness of the `unchecked` statement set
+	/// _must_ be done before calling this function!
+	pub fn unchecked_from_unchecked(unchecked: DisputeStatementSet) -> Self {
+		Self(unchecked)
+	}
+}
+
+/// A set of _checked_ dispute statements.
+pub type CheckedMultiDisputeStatementSet = Vec<CheckedDisputeStatementSet>;
 
 /// The entire state of a dispute.
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]

@@ -1,26 +1,27 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA Client
+//! Axia Client
 //!
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use axia_primitives::v1::{
-	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, AllychainHost,
+use axia_primitives::{
+	v1::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
+	v2::AllychainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;
@@ -32,7 +33,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, Block as BlockT},
 	Justifications,
 };
-use sp_storage::{ChildInfo, PrefixedStorageKey, StorageData, StorageKey};
+use sp_storage::{ChildInfo, StorageData, StorageKey};
 use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
@@ -42,18 +43,18 @@ pub type FullClient<RuntimeApi, ExecutorDispatch> =
 
 #[cfg(not(any(
 	feature = "betanet",
-	feature = "axiatest",
+	feature = "axctest",
 	feature = "alphanet",
 	feature = "axia"
 )))]
 compile_error!("at least one runtime feature must be enabled");
 
-/// The native executor instance for AXIA.
+/// The native executor instance for Axia.
 #[cfg(feature = "axia")]
-pub struct AXIAExecutorDispatch;
+pub struct AxiaExecutorDispatch;
 
 #[cfg(feature = "axia")]
-impl sc_executor::NativeExecutionDispatch for AXIAExecutorDispatch {
+impl sc_executor::NativeExecutionDispatch for AxiaExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -65,29 +66,29 @@ impl sc_executor::NativeExecutionDispatch for AXIAExecutorDispatch {
 	}
 }
 
-#[cfg(feature = "axiatest")]
-/// The native executor instance for AXIATEST.
-pub struct AXIATESTExecutorDispatch;
+#[cfg(feature = "axctest")]
+/// The native executor instance for AxiaTest.
+pub struct AxiaTestExecutorDispatch;
 
-#[cfg(feature = "axiatest")]
-impl sc_executor::NativeExecutionDispatch for AXIATESTExecutorDispatch {
+#[cfg(feature = "axctest")]
+impl sc_executor::NativeExecutionDispatch for AxiaTestExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
-		axiatest_runtime::api::dispatch(method, data)
+		axctest_runtime::api::dispatch(method, data)
 	}
 
 	fn native_version() -> sc_executor::NativeVersion {
-		axiatest_runtime::native_version()
+		axctest_runtime::native_version()
 	}
 }
 
 #[cfg(feature = "alphanet")]
-/// The native executor instance for AlphaNet.
-pub struct AlphaNetExecutorDispatch;
+/// The native executor instance for Alphanet.
+pub struct AlphanetExecutorDispatch;
 
 #[cfg(feature = "alphanet")]
-impl sc_executor::NativeExecutionDispatch for AlphaNetExecutorDispatch {
+impl sc_executor::NativeExecutionDispatch for AlphanetExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -100,11 +101,11 @@ impl sc_executor::NativeExecutionDispatch for AlphaNetExecutorDispatch {
 }
 
 #[cfg(feature = "betanet")]
-/// The native executor instance for BetaNet.
-pub struct BetaNetExecutorDispatch;
+/// The native executor instance for Betanet.
+pub struct BetanetExecutorDispatch;
 
 #[cfg(feature = "betanet")]
-impl sc_executor::NativeExecutionDispatch for BetaNetExecutorDispatch {
+impl sc_executor::NativeExecutionDispatch for BetanetExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -198,7 +199,7 @@ where
 
 /// Execute something with the client instance.
 ///
-/// As there exist multiple chains inside AXIA, like AXIA itself, AXIATEST, AlphaNet etc,
+/// As there exist multiple chains inside Axia, like Axia itself, AxiaTest, Alphanet etc,
 /// there can exist different kinds of client types. As these client types differ in the generics
 /// that are being used, we can not easily return them from a function. For returning them from a
 /// function there exists [`Client`]. However, the problem on how to use this client instance still
@@ -221,9 +222,9 @@ pub trait ExecuteWithClient {
 		Client: AbstractClient<Block, Backend, Api = Api> + 'static;
 }
 
-/// A handle to a AXIA client instance.
+/// A handle to a Axia client instance.
 ///
-/// The AXIA service supports multiple different runtimes (AlphaNet, AXIA itself, etc). As each runtime has a
+/// The Axia service supports multiple different runtimes (Alphanet, Axia itself, etc). As each runtime has a
 /// specialized client, we need to hide them behind a trait. This is this trait.
 ///
 /// When wanting to work with the inner client, you need to use `execute_with`.
@@ -244,30 +245,30 @@ macro_rules! with_client {
 	} => {
 		match $self {
 			#[cfg(feature = "axia")]
-			Self::AXIA($client) => { $( $code )* },
+			Self::Axia($client) => { $( $code )* },
 			#[cfg(feature = "alphanet")]
-			Self::AlphaNet($client) => { $( $code )* },
-			#[cfg(feature = "axiatest")]
-			Self::AXIATEST($client) => { $( $code )* },
+			Self::Alphanet($client) => { $( $code )* },
+			#[cfg(feature = "axctest")]
+			Self::AxiaTest($client) => { $( $code )* },
 			#[cfg(feature = "betanet")]
-			Self::BetaNet($client) => { $( $code )* },
+			Self::Betanet($client) => { $( $code )* },
 		}
 	}
 }
 
-/// A client instance of AXIA.
+/// A client instance of Axia.
 ///
 /// See [`ExecuteWithClient`] for more information.
 #[derive(Clone)]
 pub enum Client {
 	#[cfg(feature = "axia")]
-	AXIA(Arc<FullClient<axia_runtime::RuntimeApi, AXIAExecutorDispatch>>),
+	Axia(Arc<FullClient<axia_runtime::RuntimeApi, AxiaExecutorDispatch>>),
 	#[cfg(feature = "alphanet")]
-	AlphaNet(Arc<FullClient<alphanet_runtime::RuntimeApi, AlphaNetExecutorDispatch>>),
-	#[cfg(feature = "axiatest")]
-	AXIATEST(Arc<FullClient<axiatest_runtime::RuntimeApi, AXIATESTExecutorDispatch>>),
+	Alphanet(Arc<FullClient<alphanet_runtime::RuntimeApi, AlphanetExecutorDispatch>>),
+	#[cfg(feature = "axctest")]
+	AxiaTest(Arc<FullClient<axctest_runtime::RuntimeApi, AxiaTestExecutorDispatch>>),
 	#[cfg(feature = "betanet")]
-	BetaNet(Arc<FullClient<betanet_runtime::RuntimeApi, BetaNetExecutorDispatch>>),
+	Betanet(Arc<FullClient<betanet_runtime::RuntimeApi, BetanetExecutorDispatch>>),
 }
 
 impl ClientHandle for Client {
@@ -511,36 +512,6 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			client,
 			{
 				client.child_storage_hash(id, child_info, key)
-			}
-		}
-	}
-
-	fn max_key_changes_range(
-		&self,
-		first: NumberFor<Block>,
-		last: BlockId<Block>,
-	) -> sp_blockchain::Result<Option<(NumberFor<Block>, BlockId<Block>)>> {
-		with_client! {
-			self,
-			client,
-			{
-				client.max_key_changes_range(first, last)
-			}
-		}
-	}
-
-	fn key_changes(
-		&self,
-		first: NumberFor<Block>,
-		last: BlockId<Block>,
-		storage_key: Option<&PrefixedStorageKey>,
-		key: &StorageKey,
-	) -> sp_blockchain::Result<Vec<(NumberFor<Block>, u32)>> {
-		with_client! {
-			self,
-			client,
-			{
-				client.key_changes(first, last, storage_key, key)
 			}
 		}
 	}

@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Various implementations for `ShouldExecute`.
 
@@ -35,6 +35,11 @@ impl ShouldExecute for TakeWeightCredit {
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"TakeWeightCredit origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			_origin, _message, max_weight, weight_credit,
+		);
 		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
 		Ok(())
 	}
@@ -53,6 +58,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowTopLevelPaidExecutionFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
@@ -91,19 +101,24 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowUnpaidExecutionFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, _message, _max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		Ok(())
 	}
 }
 
 /// Allows a message only if it is from a system-level child allychain.
-pub struct IsChildSystemAllychain<ParaId>(PhantomData<ParaId>);
-impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemAllychain<ParaId> {
+pub struct IsChildSystemAllychain<AllyId>(PhantomData<AllyId>);
+impl<AllyId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemAllychain<AllyId> {
 	fn contains(l: &MultiLocation) -> bool {
 		matches!(
 			l.interior(),
 			Junctions::X1(Junction::Allychain(id))
-				if ParaId::from(*id).is_system() && l.parent_count() == 0,
+				if AllyId::from(*id).is_system() && l.parent_count() == 0,
 		)
 	}
 }
@@ -117,6 +132,11 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowKnownQueryResponses origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, _max_weight, _weight_credit,
+		);
 		match message.0.first() {
 			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>
@@ -136,6 +156,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowSubscriptionsFrom origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, message, _max_weight, _weight_credit,
+		);
 		ensure!(T::contains(origin), ());
 		match (message.0.len(), message.0.first()) {
 			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),

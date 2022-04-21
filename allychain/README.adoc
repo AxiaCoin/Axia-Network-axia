@@ -1,5 +1,5 @@
 
-= AXIA Allychain
+= Axia Allychain
 
 placeholder
-//TODO Write content :) (https://github.com/axia/axia/issues/159)
+//TODO Write content :) (https://github.com/axiatech/axia/issues/159)

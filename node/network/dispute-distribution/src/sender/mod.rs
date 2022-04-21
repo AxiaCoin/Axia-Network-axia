@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
@@ -190,8 +190,26 @@ impl DisputeSender {
 		dispute: (SessionIndex, CandidateHash),
 	) -> Result<()> {
 		let (session_index, candidate_hash) = dispute;
-		// We need some relay chain head for context for receiving session info information:
-		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
+		// A relay chain head is required as context for receiving session info information from runtime and
+		// storage. We will iterate `active_sessions` to find a suitable head. We assume that there is at
+		// least one active head which, by `session_index`, is at least as recent as the `dispute` passed in.
+		// We need to avoid picking an older one from a session that might not yet exist in storage.
+		// Related to <https://github.com/axiatech/axia/issues/4730> .
+		let ref_head = self
+			.active_sessions
+			.iter()
+			.find_map(|(active_session_index, head_hash)| {
+				// There might be more than one session index that is at least as recent as the dispute
+				// so we just pick the first one. Keep in mind we are talking about the session index for the
+				// child of block identified by `head_hash` and not the session index for the block.
+				if active_session_index >= &session_index {
+					Some(head_hash)
+				} else {
+					None
+				}
+			})
+			.ok_or(NonFatal::NoActiveHeads)?;
+
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
 			.await?;
@@ -232,7 +250,8 @@ impl DisputeSender {
 			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
 			(valid_vote, our_invalid_vote)
 		} else {
-			return Err(From::from(NonFatal::MissingVotesFromCoordinator))
+			// There is no vote from us yet - nothing to do.
+			return Ok(())
 		};
 		let (kind, valid_index, signature) = valid_vote;
 		let valid_public = info
@@ -268,7 +287,7 @@ impl DisputeSender {
 		// but I don't want to enable a bypass for the below smart constructor and this code path
 		// is supposed to be only hit on startup basically.
 		//
-		// Revisit this decision when the `from_signed_statements` is unneded for the normal code
+		// Revisit this decision when the `from_signed_statements` is unneeded for the normal code
 		// path as well.
 		let message = DisputeMessage::from_signed_statements(
 			valid_signed,
@@ -292,7 +311,7 @@ impl DisputeSender {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 	) -> Result<bool> {
-		let new_sessions = get_active_session_indeces(ctx, runtime, &self.active_heads).await?;
+		let new_sessions = get_active_session_indices(ctx, runtime, &self.active_heads).await?;
 		let new_sessions_raw: HashSet<_> = new_sessions.keys().collect();
 		let old_sessions_raw: HashSet<_> = self.active_sessions.keys().collect();
 		let updated = new_sessions_raw != old_sessions_raw;
@@ -305,14 +324,15 @@ impl DisputeSender {
 /// Retrieve the currently active sessions.
 ///
 /// List is all indices of all active sessions together with the head that was used for the query.
-async fn get_active_session_indeces<Context: SubsystemContext>(
+async fn get_active_session_indices<Context: SubsystemContext>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
 ) -> Result<HashMap<SessionIndex, Hash>> {
 	let mut indeces = HashMap::new();
+	// Iterate all heads we track as active and fetch the child' session indices.
 	for head in active_heads {
-		let session_index = runtime.get_session_index(ctx.sender(), *head).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), *head).await?;
 		indeces.insert(session_index, *head);
 	}
 	Ok(indeces)

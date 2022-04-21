@@ -1,7 +1,7 @@
 [package]
 name = "test-allychains"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 description = "Integration tests using the test-allychains"
 edition = "2018"
 
@@ -13,7 +13,7 @@ adder = { package = "test-allychain-adder", path = "adder" }
 halt = { package = "test-allychain-halt", path = "halt" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 [features]
 default = ["std"]

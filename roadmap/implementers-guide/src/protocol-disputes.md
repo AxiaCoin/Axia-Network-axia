@@ -46,7 +46,7 @@ Once becoming aware of a dispute, it is the responsibility of all validators to 
 
 Disputes _conclude_ after ⅔ supermajority is reached in either direction.
 
-The on-chain component of disputes can be initiated by providing any two conflicting votes and it also waits for a ⅔ supermajority on either side. The on-chain component also tracks which parablocks have already been disputed so the same parablock may only be disputed once on any particular branch of the relay chain. Lastly, it also tracks which blocks have been included on the current branch of the relay chain. When a dispute is initiated for a para, inclusion is halted for the para until the dispute concludes.
+The on-chain component of disputes can be initiated by providing any two conflicting votes and it also waits for a ⅔ supermajority on either side. The on-chain component also tracks which parablocks have already been disputed so the same parablock may only be disputed once on any particular branch of the relay chain. Lastly, it also tracks which blocks have been included on the current branch of the relay chain. When a dispute is initiated for a para, inclusion is halted for the ally until the dispute concludes.
 
 The author of a relay chain block should initiate the on-chain component of disputes for all disputes which the chain is not aware of, and provide all statements to the on-chain component as well. This should all be done via _inherents_.
 

@@ -1,0 +1,28 @@
+[package]
+name = "axia-node-core-pvf-checker"
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.21"
+thiserror = "1.0.30"
+tracing = "0.1.29"
+
+axia-node-primitives = { path = "../../primitives" }
+axia-node-subsystem = { path = "../../subsystem" }
+axia-primitives = { path = "../../../primitives" }
+axia-node-subsystem-util = { path = "../../subsystem-util" }
+axia-overseer = { path = "../../overseer" }
+
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+[dev-dependencies]
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
+test-helpers = { package = "axia-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+futures-timer = "3.0.2"

@@ -1,0 +1,90 @@
+# Compose file for quickly spinning up a local instance of the Rialto Allychain network.
+#
+# Since Rialto Allychain is unusable without Rialto, this file depends on some Rialto
+# network nodes.
+version: '3.5'
+services:
+  rialto-allychain-collator-alice: &rialto-allychain-collator
+    image: axiatech/rialto-allychain-collator
+    entrypoint: >
+      /home/user/rialto-allychain-collator
+      --alice
+      --collator
+      --force-authoring
+      --allychain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    volumes:
+      - rialto-share:/rialto-share:z
+    environment:
+      RUST_LOG: runtime=trace,rpc=trace,txpool=trace,allychain=trace,axia_ws=trace
+    depends_on:
+      - rialto-chainspec-exporter
+    ports:
+      - "20433:9933"
+      - "20444:9944"
+
+  rialto-allychain-collator-bob:
+    <<: *rialto-allychain-collator
+    entrypoint: >
+      /home/user/rialto-allychain-collator
+      --bob
+      --collator
+      --force-authoring
+      --allychain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    ports:
+      - "20533:9933"
+      - "20544:9944"
+
+  rialto-allychain-collator-charlie:
+    <<: *rialto-allychain-collator
+    entrypoint: >
+      /home/user/rialto-allychain-collator
+      --charlie
+      --collator
+      --force-authoring
+      --allychain-id 2000
+      --rpc-port 9933
+      --ws-port 9944
+      --rpc-cors=all
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --
+      --execution wasm
+      --chain /rialto-share/rialto-relaychain-spec-raw.json
+      --rpc-port 9934
+      --ws-port 9945
+    ports:
+      - "20633:9933"
+      - "20644:9944"
+
+  rialto-allychain-registrar:
+    image: axiatech/axlib-relay
+    entrypoint: /entrypoints/rialto-allychain-registrar-entrypoint.sh
+    volumes:
+      - ./networks/entrypoints:/entrypoints
+      - rialto-share:/rialto-share:z
+    environment:
+      RUST_LOG: bridge=trace
+    depends_on:
+      - rialto-node-alice
+      - rialto-allychain-collator-alice
+

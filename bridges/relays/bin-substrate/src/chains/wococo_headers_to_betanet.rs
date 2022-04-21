@@ -1,30 +1,32 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Wococo-to-BetaNet headers sync entrypoint.
+//! Wococo-to-Betanet headers sync entrypoint.
 
-use crate::finality_pipeline::{AxlibFinalitySyncPipeline, AxlibFinalityToAxlib};
+use codec::Encode;
+use sp_core::{Bytes, Pair};
 
 use bp_header_chain::justification::GrandpaJustification;
-use codec::Encode;
-use relay_betanet_client::{BetaNet, SigningParams as BetaNetSigningParams};
-use relay_axlib_client::{Chain, TransactionSignScheme};
+use relay_betanet_client::{Betanet, SigningParams as BetanetSigningParams};
+use relay_axlib_client::{Client, IndexOf, TransactionSignScheme, UnsignedTransaction};
 use relay_utils::metrics::MetricsParams;
 use relay_wococo_client::{SyncHeader as WococoSyncHeader, Wococo};
-use sp_core::{Bytes, Pair};
+use axlib_relay_helper::finality_pipeline::{
+	AxlibFinalitySyncPipeline, AxlibFinalityToAxlib,
+};
 
 /// Maximal saturating difference between `balance(now)` and `balance(now-24h)` to treat
 /// relay as gone wild.
@@ -33,45 +35,74 @@ use sp_core::{Bytes, Pair};
 /// Note that this is in plancks, so this corresponds to `1500 UNITS`.
 pub(crate) const MAXIMAL_BALANCE_DECREASE_PER_DAY: bp_betanet::Balance = 1_500_000_000_000_000;
 
-/// Wococo-to-BetaNet finality sync pipeline.
-pub(crate) type WococoFinalityToBetaNet = AxlibFinalityToAxlib<Wococo, BetaNet, BetaNetSigningParams>;
+/// Wococo-to-Betanet finality sync pipeline.
+pub(crate) type FinalityPipelineWococoFinalityToBetanet =
+	AxlibFinalityToAxlib<Wococo, Betanet, BetanetSigningParams>;
 
-impl AxlibFinalitySyncPipeline for WococoFinalityToBetaNet {
-	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str = bp_wococo::BEST_FINALIZED_WOCOCO_HEADER_METHOD;
+#[derive(Clone, Debug)]
+pub(crate) struct WococoFinalityToBetanet {
+	finality_pipeline: FinalityPipelineWococoFinalityToBetanet,
+}
 
-	type TargetChain = BetaNet;
+impl WococoFinalityToBetanet {
+	pub fn new(target_client: Client<Betanet>, target_sign: BetanetSigningParams) -> Self {
+		Self {
+			finality_pipeline: FinalityPipelineWococoFinalityToBetanet::new(
+				target_client,
+				target_sign,
+			),
+		}
+	}
+}
+
+impl AxlibFinalitySyncPipeline for WococoFinalityToBetanet {
+	type FinalitySyncPipeline = FinalityPipelineWococoFinalityToBetanet;
+
+	const BEST_FINALIZED_SOURCE_HEADER_ID_AT_TARGET: &'static str =
+		bp_wococo::BEST_FINALIZED_WOCOCO_HEADER_METHOD;
+
+	type TargetChain = Betanet;
 
 	fn customize_metrics(params: MetricsParams) -> anyhow::Result<MetricsParams> {
-		crate::chains::add_axia_axiatest_price_metrics::<Self>(params)
+		crate::chains::add_axia_axctest_price_metrics::<Self::FinalitySyncPipeline>(params)
 	}
 
 	fn start_relay_guards(&self) {
 		relay_axlib_client::guard::abort_on_spec_version_change(
-			self.target_client.clone(),
+			self.finality_pipeline.target_client.clone(),
 			bp_betanet::VERSION.spec_version,
 		);
 		relay_axlib_client::guard::abort_when_account_balance_decreased(
-			self.target_client.clone(),
+			self.finality_pipeline.target_client.clone(),
 			self.transactions_author(),
 			MAXIMAL_BALANCE_DECREASE_PER_DAY,
 		);
 	}
 
 	fn transactions_author(&self) -> bp_betanet::AccountId {
-		(*self.target_sign.public().as_array_ref()).into()
+		(*self.finality_pipeline.target_sign.public().as_array_ref()).into()
 	}
 
 	fn make_submit_finality_proof_transaction(
 		&self,
-		transaction_nonce: <BetaNet as Chain>::Index,
+		era: bp_runtime::TransactionEraOf<Betanet>,
+		transaction_nonce: IndexOf<Betanet>,
 		header: WococoSyncHeader,
 		proof: GrandpaJustification<bp_wococo::Header>,
 	) -> Bytes {
 		let call = relay_betanet_client::runtime::Call::BridgeGrandpaWococo(
-			relay_betanet_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof(header.into_inner(), proof),
+			relay_betanet_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof(
+				Box::new(header.into_inner()),
+				proof,
+			),
 		);
-		let genesis_hash = *self.target_client.genesis_hash();
-		let transaction = BetaNet::sign_transaction(genesis_hash, &self.target_sign, transaction_nonce, call);
+		let genesis_hash = *self.finality_pipeline.target_client.genesis_hash();
+		let transaction = Betanet::sign_transaction(
+			genesis_hash,
+			&self.finality_pipeline.target_sign,
+			era,
+			UnsignedTransaction::new(call, transaction_nonce),
+		);
 
 		Bytes(transaction.encode())
 	}
@@ -80,36 +111,19 @@ impl AxlibFinalitySyncPipeline for WococoFinalityToBetaNet {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::weights::WeightToFeePolynomial;
-	use pallet_bridge_grandpa::weights::WeightInfo;
+	use crate::chains::axctest_headers_to_axia::tests::compute_maximal_balance_decrease_per_day;
 
 	#[test]
 	fn maximal_balance_decrease_per_day_is_sane() {
-		// BetaNet/Wococo GRANDPA pallet weights. They're now using Rialto weights => using `RialtoWeight` is justified.
-		//
-		// Using Rialto runtime this is slightly incorrect, because `DbWeight` of BetaNet/Wococo runtime may differ
-		// from the `DbWeight` of Rialto runtime. But now (and most probably forever) it is the same.
-		type BetaNetGrandpaPalletWeights = pallet_bridge_grandpa::weights::RialtoWeight<rialto_runtime::Runtime>;
-
-		// The following formula shall not be treated as super-accurate - guard is to protect from mad relays,
-		// not to protect from over-average loses.
-		//
-		// Worst case: we're submitting proof for every source header. Since we submit every header, the number of
-		// headers in ancestry proof is near to 0 (let's round up to 2). And the number of authorities is 1024,
-		// which is (now) larger than on any existing chain => normally there'll be ~1024*2/3+1 commits.
-		const AVG_VOTES_ANCESTRIES_LEN: u32 = 2;
-		const AVG_PRECOMMITS_LEN: u32 = 1024 * 2 / 3 + 1;
-		let number_of_source_headers_per_day: bp_wococo::Balance = bp_wococo::DAYS as _;
-		let single_source_header_submit_call_weight =
-			BetaNetGrandpaPalletWeights::submit_finality_proof(AVG_VOTES_ANCESTRIES_LEN, AVG_PRECOMMITS_LEN);
-		// for simplicity - add extra weight for base tx fee + fee that is paid for the tx size + adjusted fee
-		let single_source_header_submit_tx_weight = single_source_header_submit_call_weight * 3 / 2;
-		let single_source_header_tx_cost = bp_betanet::WeightToFee::calc(&single_source_header_submit_tx_weight);
-		let maximal_expected_decrease = single_source_header_tx_cost * number_of_source_headers_per_day;
+		// we expect Wococo -> Betanet relay to be running in all-headers mode
+		let maximal_balance_decrease = compute_maximal_balance_decrease_per_day::<
+			bp_axctest::Balance,
+			bp_axctest::WeightToFee,
+		>(bp_wococo::DAYS);
 		assert!(
-			MAXIMAL_BALANCE_DECREASE_PER_DAY >= maximal_expected_decrease,
+			MAXIMAL_BALANCE_DECREASE_PER_DAY >= maximal_balance_decrease,
 			"Maximal expected loss per day {} is larger than hardcoded {}",
-			maximal_expected_decrease,
+			maximal_balance_decrease,
 			MAXIMAL_BALANCE_DECREASE_PER_DAY,
 		);
 	}

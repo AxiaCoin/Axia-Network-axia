@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Implements the Chain API Subsystem
 //!
@@ -145,7 +145,7 @@ where
 							Ok(None) => None,
 							Ok(Some(header)) => {
 								// stop at the genesis header.
-								if header.number == 1 {
+								if header.number == 0 {
 									None
 								} else {
 									hash = header.parent_hash;
@@ -229,7 +229,7 @@ impl metrics::Metrics for Metrics {
 			chain_api_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"allychain_chain_api_requests_total",
+						"axia_allychain_chain_api_requests_total",
 						"Number of Chain API requests served.",
 					),
 					&["success"],
@@ -238,42 +238,42 @@ impl metrics::Metrics for Metrics {
 			)?,
 			block_number: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_block_number",
+					"axia_allychain_chain_api_block_number",
 					"Time spent within `chain_api::block_number`",
 				))?,
 				registry,
 			)?,
 			block_header: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_block_headers",
+					"axia_allychain_chain_api_block_headers",
 					"Time spent within `chain_api::block_headers`",
 				))?,
 				registry,
 			)?,
 			block_weight: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_block_weight",
+					"axia_allychain_chain_api_block_weight",
 					"Time spent within `chain_api::block_weight`",
 				))?,
 				registry,
 			)?,
 			finalized_block_hash: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_finalized_block_hash",
+					"axia_allychain_chain_api_finalized_block_hash",
 					"Time spent within `chain_api::finalized_block_hash`",
 				))?,
 				registry,
 			)?,
 			finalized_block_number: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_finalized_block_number",
+					"axia_allychain_chain_api_finalized_block_number",
 					"Time spent within `chain_api::finalized_block_number`",
 				))?,
 				registry,
 			)?,
 			ancestors: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_chain_api_ancestors",
+					"axia_allychain_chain_api_ancestors",
 					"Time spent within `chain_api::ancestors`",
 				))?,
 				registry,

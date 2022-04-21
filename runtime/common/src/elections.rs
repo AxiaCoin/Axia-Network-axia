@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Code for elections.
 
@@ -70,7 +70,7 @@ pub type GenesisElectionOf<T> =
 /// pallet-election-provider-multi-phase.
 pub const MINER_MAX_ITERATIONS: u32 = 10;
 
-/// A source of random balance for the NPoS Solver, which is meant to be run by the offchain worker
+/// A source of random balance for the NPoS Solver, which is meant to be run by the off-chain worker
 /// election miner.
 pub struct OffchainRandomBalancing;
 impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
@@ -128,19 +128,19 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::on_remove(id);
 	}
 
-	fn regenerate(
+	fn unsafe_regenerate(
 		all: impl IntoIterator<Item = T::AccountId>,
 		weight_of: Box<dyn Fn(&T::AccountId) -> VoteWeight>,
 	) -> u32 {
-		pallet_bags_list::Pallet::<T>::regenerate(all, weight_of)
+		pallet_bags_list::Pallet::<T>::unsafe_regenerate(all, weight_of)
 	}
 
 	fn sanity_check() -> Result<(), &'static str> {
 		pallet_bags_list::Pallet::<T>::sanity_check()
 	}
 
-	fn clear(count: Option<u32>) -> u32 {
-		pallet_bags_list::Pallet::<T>::clear(count)
+	fn unsafe_clear() {
+		pallet_bags_list::Pallet::<T>::unsafe_clear()
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]

@@ -64,11 +64,11 @@ HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
 /// This mapping tracks how many open channel requests are inititated by a given sender para.
 /// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
-HrmpOpenChannelRequestCount: map ParaId => u32;
+HrmpOpenChannelRequestCount: map AllyId => u32;
 /// This mapping tracks how many open channel requests were accepted by a given recipient para.
 /// Invariant: `HrmpOpenChannelRequests` should contain the same number of items `(_, X)` with
 /// `confirmed` set to true, as the number of `HrmpAcceptedChannelRequestCount` for `X`.
-HrmpAcceptedChannelRequestCount: map ParaId => u32;
+HrmpAcceptedChannelRequestCount: map AllyId => u32;
 
 /// A set of pending HRMP close channel requests that are going to be closed during the session change.
 /// Used for checking if a given channel is registered for closure.
@@ -82,8 +82,8 @@ HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
 
 /// The HRMP watermark associated with each para.
 /// Invariant:
-/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
-HrmpWatermarks: map ParaId => Option<BlockNumber>;
+/// - each ally `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+HrmpWatermarks: map AllyId => Option<BlockNumber>;
 /// HRMP channel data associated with each para.
 /// Invariant:
 /// - each participant in the channel should satisfy `Paras::is_valid_para(P)` within a session.
@@ -101,19 +101,19 @@ HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
 ///   as `(P, E)`.
 /// - there should be no other dangling channels in `HrmpChannels`.
 /// - the vectors are sorted.
-HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
-HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
+HrmpIngressChannelsIndex: map AllyId => Vec<AllyId>;
+HrmpEgressChannelsIndex: map AllyId => Vec<AllyId>;
 /// Storage for the messages for each channel.
 /// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
 /// Invariants:
-/// - The inner `Vec<ParaId>` is never empty.
-/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
+/// - The inner `Vec<AllyId>` is never empty.
+/// - The inner `Vec<AllyId>` cannot store two same `AllyId`.
 /// - The outer vector is sorted ascending by block number and cannot store two items with the same
 ///   block number.
-HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
+HrmpChannelDigests: map AllyId => Vec<(BlockNumber, Vec<AllyId>)>;
 ```
 
 ## Initialization
@@ -124,15 +124,15 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
+* `check_hrmp_watermark(P: AllyId, new_hrmp_watermark)`:
     1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
     1. `new_hrmp_watermark` must not be greater than the context's block number.
     1. `new_hrmp_watermark` should be either
         1. equal to the context's block number
         1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
-* `check_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
+* `check_outbound_hrmp(sender: AllyId, Vec<OutboundHrmpMessage>)`:
     1. Checks that there are at most `config.hrmp_max_message_num_per_candidate` messages.
-    1. Checks that horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
+    1. Checks that horizontal messages are sorted by ascending recipient AllyId and there is no two horizontal messages have the same recipient.
     1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
         1. exists
         1. `M`'s payload size doesn't exceed a preconfigured limit `C.max_message_size`
@@ -141,7 +141,7 @@ Candidate Acceptance Function:
 
 Candidate Enactment:
 
-* `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
+* `queue_outbound_hrmp(sender: AllyId, Vec<OutboundHrmpMessage>)`:
     1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
         1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
         1. Locate or create an entry in `HrmpChannelDigests` for `HM.recipient` and append `sender` into the entry's list.
@@ -165,7 +165,7 @@ Candidate Enactment:
 
 The following entry-points are meant to be used for HRMP channel management.
 
-Those entry-points are meant to be called from a allychain. `origin` is defined as the `ParaId` of
+Those entry-points are meant to be called from a allychain. `origin` is defined as the `AllyId` of
 the allychain executed the message.
 
 * `hrmp_init_open_channel(recipient, proposed_max_capacity, proposed_max_message_size)`:
@@ -178,7 +178,7 @@ the allychain executed the message.
     1. Check that the sum of the number of already opened HRMP channels by the `origin` (the size
     of the set found `HrmpEgressChannelsIndex` for `origin`) and the number of open requests by the
     `origin` (the value from `HrmpOpenChannelRequestCount` for `origin`) doesn't exceed the limit of
-    channels (`config.hrmp_max_allychain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
+    channels (`config.hrmp_max_allychain_outbound_channels` or `config.hrmp_max_allythread_outbound_channels`) minus 1.
     1. Check that `origin`'s balance is more or equal to `config.hrmp_sender_deposit`
     1. Reserve the deposit for the `origin` according to `config.hrmp_sender_deposit`
     1. Increase `HrmpOpenChannelRequestCount` by 1 for `origin`.
@@ -200,7 +200,7 @@ the allychain executed the message.
     1. Check that the sum of the number of inbound HRMP channels opened to `origin` (the size of the set
     found in `HrmpIngressChannelsIndex` for `origin`) and the number of accepted open requests by the `origin`
     (the value from `HrmpAcceptedChannelRequestCount` for `origin`) doesn't exceed the limit of channels
-    (`config.hrmp_max_allychain_inbound_channels` or `config.hrmp_max_parathread_inbound_channels`)
+    (`config.hrmp_max_allychain_inbound_channels` or `config.hrmp_max_allythread_inbound_channels`)
     minus 1.
     1. Check that `origin`'s balance is more or equal to `config.hrmp_recipient_deposit`.
     1. Reserve the deposit for the `origin` according to `config.hrmp_recipient_deposit`

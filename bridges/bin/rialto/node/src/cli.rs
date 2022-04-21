@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 use sc_cli::RunCmd;
 use structopt::StructOpt;
@@ -29,10 +29,10 @@ pub struct Cli {
 /// Possible subcommands of the main binary.
 #[derive(Debug, StructOpt)]
 pub enum Subcommand {
-	/// Key management cli utilities
+	/// Key management CLI utilities
 	Key(sc_cli::KeySubcommand),
 
-	/// Verify a signature for a message, provided on STDIN, with a given (public or secret) key.
+	/// Verify a signature for a message, provided on `STDIN`, with a given (public or secret) key.
 	Verify(sc_cli::VerifyCmd),
 
 	/// Generate a seed that provides a vanity address.
@@ -67,4 +67,19 @@ pub enum Subcommand {
 
 	/// Benchmark runtime pallets.
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// FOR INTERNAL USE: analog of the "prepare-worker" command of the axia binary.
+	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfPrepareWorker(ValidationWorkerCommand),
+
+	/// FOR INTERNAL USE: analog of the "execute-worker" command of the axia binary.
+	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfExecuteWorker(ValidationWorkerCommand),
+}
+
+/// Validation worker command.
+#[derive(Debug, StructOpt)]
+pub struct ValidationWorkerCommand {
+	/// The path to the validation host's socket.
+	pub socket_path: String,
 }

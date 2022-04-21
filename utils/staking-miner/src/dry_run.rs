@@ -1,26 +1,27 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The dry-run command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
+	prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
 };
 use codec::Encode;
 use frame_support::traits::Currency;
+use jsonrpsee::rpc_params;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -74,7 +75,7 @@ async fn print_info<T: EPM::Config>(
 	let info = rpc::<pallet_transaction_payment::RuntimeDispatchInfo<Balance>>(
 		client,
 		"payment_queryInfo",
-		params! { extrinsic },
+		rpc_params! { extrinsic },
 	)
 	.await;
 	log::info!(
@@ -149,7 +150,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		});
 		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
 
-		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes })
+		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", rpc_params!{ bytes })
 			.await
 			.map_err::<Error<Runtime>, _>(Into::into)?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
@@ -158,5 +159,5 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 }}}
 
 dry_run_cmd_for!(axia);
-dry_run_cmd_for!(axiatest);
+dry_run_cmd_for!(axctest);
 dry_run_cmd_for!(alphanet);

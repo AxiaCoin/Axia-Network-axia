@@ -1,40 +1,51 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Axlib session manager that selects 2/3 validators from initial set,
 //! starting from session 2.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{decl_module, decl_storage};
 use sp_std::prelude::*;
 
-/// The module configuration trait.
-pub trait Config: pallet_session::Config {}
+pub use pallet::*;
 
-decl_module! {
-	/// Shift session manager pallet.
-	pub struct Module<T: Config> for enum Call where origin: T::Origin {}
-}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 
-decl_storage! {
-	trait Store for Pallet<T: Config> as ShiftSessionManager {
-		/// Validators of first two sessions.
-		InitialValidators: Option<Vec<T::ValidatorId>>;
-	}
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: pallet_session::Config {}
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(PhantomData<T>);
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {}
+
+	/// Validators of first two sessions.
+	#[pallet::storage]
+	pub(super) type InitialValidators<T: Config> = StorageValue<_, Vec<T::ValidatorId>>;
 }
 
 impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
@@ -43,7 +54,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 	fn new_session(session_index: sp_staking::SessionIndex) -> Option<Vec<T::ValidatorId>> {
 		// we don't want to add even more fields to genesis config => just return None
 		if session_index == 0 || session_index == 1 {
-			return None;
+			return None
 		}
 
 		// the idea that on first call (i.e. when session 1 ends) we're reading current
@@ -90,13 +101,18 @@ mod tests {
 	#![allow(clippy::from_over_into)]
 
 	use super::*;
-	use frame_support::sp_io::TestExternalities;
-	use frame_support::sp_runtime::{
-		testing::{Header, UintAuthorityId},
-		traits::{BlakeTwo256, ConvertInto, IdentityLookup},
-		Perbill, RuntimeAppPublic,
+	use frame_support::{
+		parameter_types,
+		sp_io::TestExternalities,
+		sp_runtime::{
+			testing::{Header, UintAuthorityId},
+			traits::{BlakeTwo256, ConvertInto, IdentityLookup},
+			Perbill, RuntimeAppPublic,
+		},
+		traits::GenesisBuild,
+		weights::Weight,
+		BasicExternalities,
 	};
-	use frame_support::{parameter_types, weights::Weight, BasicExternalities};
 	use sp_core::H256;
 
 	type AccountId = u64;
@@ -146,6 +162,7 @@ mod tests {
 		type DbWeight = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -171,17 +188,21 @@ mod tests {
 	impl pallet_session::SessionHandler<AccountId> for TestSessionHandler {
 		const KEY_TYPE_IDS: &'static [sp_runtime::KeyTypeId] = &[UintAuthorityId::ID];
 
-		fn on_genesis_session<Ks: sp_runtime::traits::OpaqueKeys>(_validators: &[(AccountId, Ks)]) {}
+		fn on_genesis_session<Ks: sp_runtime::traits::OpaqueKeys>(_validators: &[(AccountId, Ks)]) {
+		}
 
-		fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(_: bool, _: &[(AccountId, Ks)], _: &[(AccountId, Ks)]) {}
+		fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(
+			_: bool,
+			_: &[(AccountId, Ks)],
+			_: &[(AccountId, Ks)],
+		) {
+		}
 
 		fn on_disabled(_: u32) {}
 	}
 
 	fn new_test_ext() -> TestExternalities {
-		let mut t = frame_system::GenesisConfig::default()
-			.build_storage::<TestRuntime>()
-			.unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<TestRuntime>().unwrap();
 
 		let keys = vec![
 			(1, 1, UintAuthorityId(1)),

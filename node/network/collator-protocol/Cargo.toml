@@ -1,20 +1,20 @@
 [package]
 name = "axia-collator-protocol"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
 always-assert = "0.1.2"
-derive_more = "0.99.14"
-futures = "0.3.17"
+derive_more = "0.99.17"
+futures = "0.3.21"
 futures-timer = "3"
 thiserror = "1.0.30"
 tracing = "0.1.29"
 
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 axia-primitives = { path = "../../../primitives" }
 axia-node-network-protocol = { path = "../../network/protocol" }
@@ -27,9 +27,10 @@ log = "0.4.13"
 env_logger = "0.9.0"
 assert_matches = "1.4.0"
 
-sp-core = { git = "https://github.com/axia-tech/axia-core", features = ["std"] , branch = "dev" }
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", features = ["std"] , branch = "axlib" }
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-network = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 axia-scale-codec = { version = "2.3.1", features = ["std"]  }
 
 axia-subsystem-testhelpers = { package = "axia-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+axia-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

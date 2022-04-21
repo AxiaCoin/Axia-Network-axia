@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use assert_matches::assert_matches;
@@ -28,7 +28,8 @@ use axia_node_network_protocol::{
 };
 use axia_node_primitives::Statement;
 use axia_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use axia_primitives::v1::{CommittedCandidateReceipt, SessionInfo, ValidationCode};
+use axia_primitives::{v1::ValidationCode, v2::SessionInfo};
+use axia_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
 use axia_subsystem::{
 	jaeger,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
@@ -53,23 +54,23 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	let signing_context = SigningContext { parent_hash, session_index };
 
 	let candidate_a = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c
 	};
 
 	let candidate_b = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
-		c.descriptor.para_id = 2.into();
+		c.descriptor.ally_id = 2.into();
 		c
 	};
 
 	let candidate_c = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = parent_hash;
-		c.descriptor.para_id = 3.into();
+		c.descriptor.ally_id = 3.into();
 		c
 	};
 
@@ -369,9 +370,9 @@ fn peer_view_update_sends_messages() {
 	let hash_c = Hash::repeat_byte(3);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_c;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c
 	};
 	let candidate_hash = candidate.hash();
@@ -547,9 +548,9 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 	let hash_c = Hash::repeat_byte(3);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_b;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c
 	};
 
@@ -677,9 +678,9 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c
 	};
 
@@ -702,7 +703,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
@@ -864,9 +865,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let hash_b = Hash::repeat_byte(2);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 		c
 	};
@@ -894,7 +895,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -944,7 +945,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
@@ -956,7 +957,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Bob.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
@@ -967,7 +968,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Charlie.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
@@ -1161,7 +1162,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				assert_eq!(outgoing.peer, Recipient::Peer(peer_bad));
 				let bad_candidate = {
 					let mut bad = candidate.clone();
-					bad.descriptor.para_id = 0xeadbeaf.into();
+					bad.descriptor.ally_id = 0xeadbeaf.into();
 					bad
 				};
 				let response = StatementFetchingResponse::Statement(bad_candidate);
@@ -1345,9 +1346,9 @@ fn share_prioritizes_backing_group() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 		c
 	};
@@ -1393,7 +1394,7 @@ fn share_prioritizes_backing_group() {
 	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
 
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1444,7 +1445,7 @@ fn share_prioritizes_backing_group() {
 						NetworkBridgeEvent::PeerConnected(
 							peer,
 							ObservedRole::Full,
-							Some(pair.public().into()),
+							Some(HashSet::from([pair.public().into()])),
 						),
 					),
 				})
@@ -1466,7 +1467,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
@@ -1477,7 +1478,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Bob.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
@@ -1488,7 +1489,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Charlie.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
@@ -1506,7 +1507,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Dave.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
 			})
@@ -1649,9 +1650,9 @@ fn peer_cant_flood_with_large_statements() {
 	let hash_a = Hash::repeat_byte(1);
 
 	let candidate = {
-		let mut c = CommittedCandidateReceipt::default();
+		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.ally_id = 1.into();
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 		c
 	};
@@ -1678,7 +1679,7 @@ fn peer_cant_flood_with_large_statements() {
 
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s = StatementDistribution::new(
+		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
@@ -1728,7 +1729,7 @@ fn peer_cant_flood_with_large_statements() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
@@ -1814,7 +1815,7 @@ fn peer_cant_flood_with_large_statements() {
 					if p == peer_a && r == COST_APPARENT_FLOOD =>
 				{
 					punished = true;
-				}
+				},
 
 				m => panic!("Unexpected message: {:?}", m),
 			}
@@ -1850,5 +1851,8 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		n_delay_tranches: 0,
 		no_show_slots: 0,
 		needed_approvals: 0,
+		active_validator_indices: Vec::new(),
+		dispute_period: 6,
+		random_seed: [0u8; 32],
 	}
 }

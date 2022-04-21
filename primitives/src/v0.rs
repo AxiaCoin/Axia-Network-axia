@@ -1,18 +1,18 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Primitives which are necessary for allychain execution from a relay-chain
 //! perspective.
@@ -107,11 +107,11 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash, MallocSizeOf))]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
-// We should really get https://github.com/axia/axia/issues/2403 going ..
+// We should really get https://github.com/axiatech/axia/issues/2403 going ..
 impl From<u32> for ValidatorIndex {
 	fn from(n: u32) -> Self {
 		ValidatorIndex(n)
@@ -146,7 +146,7 @@ pub enum Retriable {
 	/// Ineligible for retry. This means it's either a allychain that is always scheduled anyway or
 	/// has been removed/swapped.
 	Never,
-	/// Eligible for retry; the associated value is the number of retries that the para already had.
+	/// Eligible for retry; the associated value is the number of retries that the ally already had.
 	WithRetries(u32),
 }
 
@@ -158,7 +158,7 @@ pub trait ActiveParas {
 	/// other collator's block.
 	///
 	/// NOTE: The initial implementation simply concatenates the (ordered) set of (permanent)
-	/// allychain IDs with the (unordered) set of parathread IDs selected for this block.
+	/// allychain IDs with the (unordered) set of allythread IDs selected for this block.
 	fn active_paras() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
 }
 
@@ -167,7 +167,7 @@ pub trait ActiveParas {
 pub enum Scheduling {
 	/// Scheduled every block.
 	Always,
-	/// Scheduled dynamically (i.e. a parathread).
+	/// Scheduled dynamically (i.e. a allythread).
 	Dynamic,
 }
 
@@ -181,7 +181,7 @@ pub struct Info {
 /// An `Info` value for a standard leased allychain.
 pub const ALLYCHAIN_INFO: Info = Info { scheduling: Scheduling::Always };
 
-/// Auxiliary for when there's an attempt to swap two allychains/parathreads.
+/// Auxiliary for when there's an attempt to swap two allychains/allythreads.
 pub trait SwapAux {
 	/// Result describing whether it is possible to swap two allychains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
@@ -206,8 +206,7 @@ impl SwapAux for () {
 }
 
 /// Identifier for a chain, either one of a number of allychains or the relay chain.
-#[derive(Copy, Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Copy, Clone, PartialEq, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub enum Chain {
 	/// The relay chain.
 	Relay,
@@ -216,8 +215,8 @@ pub enum Chain {
 }
 
 /// The duty roster specifying what jobs each validator must do.
-#[derive(Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Default, Debug))]
+#[derive(Clone, PartialEq, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
@@ -227,8 +226,8 @@ pub struct DutyRoster {
 /// to fully validate the candidate.
 ///
 /// These are global parameters that apply to all allychain candidates in a block.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
@@ -240,8 +239,8 @@ pub struct GlobalValidationData<N = BlockNumber> {
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are allychain-specific.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
@@ -262,8 +261,8 @@ pub struct LocalValidationData<N = BlockNumber> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct CandidateCommitments<H = Hash> {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
@@ -311,8 +310,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// All data pertaining to the execution of a allychain candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The ID of the allychain this is a candidate for.
 	pub allychain_index: Id,
@@ -387,7 +385,7 @@ impl PartialOrd for CandidateReceipt {
 impl Ord for CandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
-		// https://github.com/axia/axia/issues/222
+		// https://github.com/axiatech/axia/issues/222
 		self.allychain_index
 			.cmp(&other.allychain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
@@ -396,8 +394,8 @@ impl Ord for CandidateReceipt {
 
 /// All the data which is omitted in an `AbridgedCandidateReceipt`, but that
 /// is necessary for validation of the allychain candidate.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationData<N>,
@@ -410,8 +408,7 @@ pub struct OmittedValidationData<N = BlockNumber> {
 /// Much info in a candidate-receipt is duplicated from the relay-chain state.
 /// When submitting to the relay-chain, this data should be omitted as it can
 /// be re-generated from relay-chain state.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct AbridgedCandidateReceipt<H = Hash> {
 	/// The ID of the allychain this is a candidate for.
 	pub allychain_index: Id,
@@ -519,7 +516,7 @@ impl AbridgedCandidateReceipt {
 	/// Clone the relevant portions of the `AbridgedCandidateReceipt` to form a `CandidateDescriptor`.
 	pub fn to_descriptor(&self) -> CandidateDescriptor {
 		CandidateDescriptor {
-			para_id: self.allychain_index,
+			ally_id: self.allychain_index,
 			relay_parent: self.relay_parent,
 			collator: self.collator.clone(),
 			signature: self.signature.clone(),
@@ -537,7 +534,7 @@ impl PartialOrd for AbridgedCandidateReceipt {
 impl Ord for AbridgedCandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
-		// https://github.com/axia/axia/issues/222
+		// https://github.com/axiatech/axia/issues/222
 		self.allychain_index
 			.cmp(&other.allychain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
@@ -545,11 +542,10 @@ impl Ord for AbridgedCandidateReceipt {
 }
 
 /// A unique descriptor of the candidate receipt, in a lightweight format.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct CandidateDescriptor<H = Hash> {
-	/// The ID of the para this is a candidate for.
-	pub para_id: Id,
+	/// The ID of the ally this is a candidate for.
+	pub ally_id: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
 	// NOTE: the fact that the hash includes this value means that code depends
@@ -558,15 +554,14 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of components of this receipt:
-	/// The para ID, the relay parent, and the `pov_hash`.
+	/// The ally ID, the relay parent, and the `pov_hash`.
 	pub signature: CollatorSignature,
 	/// The hash of the `pov-block`.
 	pub pov_hash: H,
 }
 
 /// A collation sent by a collator.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct CollationInfo {
 	/// The ID of the allychain this is a candidate for.
 	pub allychain_index: Id,
@@ -619,8 +614,8 @@ impl CollationInfo {
 }
 
 /// A full collation.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Encode, Decode, TypeInfo))]
 pub struct Collation {
 	/// Candidate receipt itself.
 	pub info: CollationInfo,
@@ -629,8 +624,8 @@ pub struct Collation {
 }
 
 /// A Proof-of-Validation block.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Encode, Decode, TypeInfo))]
 pub struct PoVBlock {
 	/// Block data.
 	pub block_data: BlockData,
@@ -645,8 +640,8 @@ impl PoVBlock {
 }
 
 /// The data that is kept available about a particular allychain block.
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "std", derive(Debug, Encode, Decode, TypeInfo))]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Encode, Decode, TypeInfo))]
 pub struct AvailableData {
 	/// The PoV block.
 	pub pov_block: PoVBlock,
@@ -660,8 +655,8 @@ const BACKING_STATEMENT_MAGIC: [u8; 4] = *b"BKNG";
 
 /// Statements that can be made about allychain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
+#[derive(Clone, PartialEq, Eq, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Hash))]
 pub enum CompactStatement {
 	/// Proposal of a allychain candidate.
 	Seconded(CandidateHash),
@@ -818,8 +813,10 @@ impl AttestedCandidate {
 }
 
 /// A fee schedule for messages. This is a linear function in the number of bytes of a message.
-#[derive(PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[derive(
+	PartialEq, Eq, PartialOrd, Hash, Default, Clone, Copy, Encode, Decode, TypeInfo, RuntimeDebug,
+)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct FeeSchedule {
 	/// The base fee charged for all messages.
 	pub base: Balance,
@@ -873,7 +870,7 @@ pub mod id {
 	pub const ALLYCHAIN_HOST: ApiId = *b"parahost";
 }
 
-/// Custom validity errors used in AXIA while validating transactions.
+/// Custom validity errors used in Axia while validating transactions.
 #[repr(u8)]
 pub enum ValidityError {
 	/// The Ethereum signature is invalid.

@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::{HashMap, HashSet};
 
@@ -57,16 +57,6 @@ pub struct SendTask {
 
 	/// Whether we have any tasks failed since the last refresh.
 	has_failed_sends: bool,
-
-	/// Total count of failed transmissions.
-	///
-	/// Used for issuing a warning, if that number gets above a certain threshold.
-	failed_count: usize,
-
-	/// Total number of initiated requests.
-	///
-	/// Used together with `failed_count` for issuing a warning on too many failed attempts.
-	send_count: usize,
 
 	/// Sender to be cloned for tasks.
 	tx: mpsc::Sender<TaskFinish>,
@@ -120,14 +110,8 @@ impl SendTask {
 		request: DisputeRequest,
 		metrics: &Metrics,
 	) -> Result<Self> {
-		let mut send_task = Self {
-			request,
-			deliveries: HashMap::new(),
-			has_failed_sends: false,
-			tx,
-			failed_count: 0,
-			send_count: 0,
-		};
+		let mut send_task =
+			Self { request, deliveries: HashMap::new(), has_failed_sends: false, tx };
 		send_task.refresh_sends(ctx, runtime, active_sessions, metrics).await?;
 		Ok(send_task)
 	}
@@ -160,7 +144,6 @@ impl SendTask {
 				.await?;
 
 		self.has_failed_sends = false;
-		self.send_count += new_statuses.len();
 		self.deliveries.extend(new_statuses.into_iter());
 		Ok(())
 	}
@@ -176,32 +159,13 @@ impl SendTask {
 	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
 		match result {
 			TaskResult::Failed(err) => {
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					?authority,
 					candidate_hash = %self.request.0.candidate_receipt.hash(),
 					%err,
 					"Error sending dispute statements to node."
 				);
-
-				self.failed_count += 1;
-				let error_rate = (100 * self.failed_count).checked_div(self.send_count).expect(
-					"We cannot receive a failed request, without having sent one first. qed.",
-				);
-				// 10% seems to be a sensible threshold to become alert - note that
-				// self.send_count gets increased in batches of the full validator set, so we don't
-				// need to account for a low send_count.
-				if error_rate > 10 {
-					tracing::warn!(
-						target: LOG_TARGET,
-						candidate_hash = %self.request.0.candidate_receipt.hash(),
-						last_authority = ?authority,
-						last_error = %err,
-						failed_count = ?self.failed_count,
-						total_attempts = ?self.send_count,
-						"Sending our dispute vote failed for more than 10% of total attempts!"
-					);
-				}
 
 				self.has_failed_sends = true;
 				// Remove state, so we know what to try again:
@@ -240,7 +204,8 @@ impl SendTask {
 		active_sessions: &HashMap<SessionIndex, Hash>,
 	) -> Result<HashSet<AuthorityDiscoveryId>> {
 		let ref_head = self.request.0.candidate_receipt.descriptor.relay_parent;
-		// Allychain validators:
+		// Retrieve all authorities which participated in the allychain consensus of the session
+		// in which the candidate was backed.
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), ref_head, self.request.0.session_index)
 			.await?;
@@ -255,7 +220,8 @@ impl SendTask {
 			.map(|(_, v)| v.clone())
 			.collect();
 
-		// Current authorities:
+		// Retrieve all authorities for the current session as indicated by the active
+		// heads we are tracking.
 		for (session_index, head) in active_sessions.iter() {
 			let info =
 				runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;
@@ -304,11 +270,7 @@ async fn send_requests<Context: SubsystemContext>(
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 
-	let msg = NetworkBridgeMessage::SendRequests(
-		reqs,
-		// We should be connected, but the hell - if not, try!
-		IfDisconnected::TryConnect,
-	);
+	let msg = NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError);
 	ctx.send_message(AllMessages::NetworkBridge(msg)).await;
 	Ok(statuses)
 }

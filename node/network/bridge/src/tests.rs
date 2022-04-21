@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
@@ -34,6 +34,7 @@ use axia_node_subsystem_test_helpers::{
 };
 use axia_node_subsystem_util::metered;
 use axia_primitives::v1::AuthorityDiscoveryId;
+use axia_primitives_test_helpers::dummy_collator_signature;
 use axia_subsystem::{
 	jaeger,
 	messages::{
@@ -143,14 +144,14 @@ impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		_authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>> {
+	) -> Option<HashSet<Multiaddr>> {
 		None
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		_peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId> {
+	) -> Option<HashSet<AuthorityDiscoveryId>> {
 		None
 	}
 }
@@ -868,7 +869,7 @@ fn relays_collation_protocol_messages() {
 		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 			Sr25519Keyring::Alice.public().into(),
 			Default::default(),
-			Default::default(),
+			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		);
 
 		let message =
@@ -1158,8 +1159,8 @@ fn send_messages_to_peers() {
 		{
 			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
 				Sr25519Keyring::Alice.public().into(),
-				Default::default(),
-				Default::default(),
+				0_u32.into(),
+				dummy_collator_signature(),
 			);
 
 			let message =
@@ -1225,10 +1226,9 @@ fn spread_event_to_subsystems_is_up_to_date() {
 				cnt += 1;
 			},
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
-			AllMessages::DisputeParticipation(_) =>
-				unreachable!("Not interested in network events"),
 			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
+			AllMessages::PvfChecker(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
 			// notified, `unreachable!()` for those that should not.
 		}

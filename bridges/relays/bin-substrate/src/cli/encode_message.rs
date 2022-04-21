@@ -1,22 +1,25 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{bridge::FullBridge, AccountId, CliChain, HexBytes};
-use crate::select_full_bridge;
+use crate::{
+	cli::{bridge::FullBridge, AccountId, CliChain, HexBytes},
+	select_full_bridge,
+};
 use structopt::StructOpt;
+use strum::VariantNames;
 
 /// Generic message payload.
 #[derive(StructOpt, Debug, PartialEq, Eq)]
@@ -41,7 +44,7 @@ pub enum MessagePayload {
 #[derive(StructOpt)]
 pub struct EncodeMessage {
 	/// A bridge instance to initialize.
-	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
+	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
 	bridge: FullBridge,
 	#[structopt(flatten)]
 	payload: MessagePayload,
@@ -51,7 +54,8 @@ impl EncodeMessage {
 	/// Run the command.
 	pub fn encode(self) -> anyhow::Result<HexBytes> {
 		select_full_bridge!(self.bridge, {
-			let payload = Source::encode_message(self.payload).map_err(|e| anyhow::format_err!("{}", e))?;
+			let payload =
+				Source::encode_message(self.payload).map_err(|e| anyhow::format_err!("{}", e))?;
 			Ok(HexBytes::encode(&payload))
 		})
 	}
@@ -73,7 +77,8 @@ mod tests {
 	fn should_encode_raw_message() {
 		// given
 		let msg = "01000000e88514000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c040130000000000000000000000000";
-		let encode_message = EncodeMessage::from_iter(vec!["encode-message", "MillauToRialto", "raw", msg]);
+		let encode_message =
+			EncodeMessage::from_iter(vec!["encode-message", "rialto-to-millau", "raw", msg]);
 
 		// when
 		let hex = encode_message.encode().unwrap();
@@ -88,7 +93,7 @@ mod tests {
 		let sender = sp_keyring::AccountKeyring::Alice.to_account_id().to_ss58check();
 		let encode_message = EncodeMessage::from_iter(vec![
 			"encode-message",
-			"RialtoToMillau",
+			"rialto-to-millau",
 			"call",
 			"--sender",
 			&sender,
@@ -101,6 +106,6 @@ mod tests {
 		let hex = encode_message.encode().unwrap();
 
 		// then
-		assert_eq!(format!("{:?}", hex), "0x01000000b0d60f000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c040130000000000000000000000000");
+		assert_eq!(format!("{:?}", hex), "0x0100000010f108000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c000130000000000000000000000000");
 	}
 }

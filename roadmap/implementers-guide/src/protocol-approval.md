@@ -96,7 +96,7 @@ We want checkers for candidate equivocations that lie outside our preferred rela
 
 ## Assignment criteria
 
-Assignment criteria compute actual assignments using stories and the validators' secret approval assignment key.  Assignment criteria output a `Position` consisting of both a `ParaId` to be checked, as well as a precedence `DelayTranche` for when the assignment becomes valid.
+Assignment criteria compute actual assignments using stories and the validators' secret approval assignment key.  Assignment criteria output a `Position` consisting of both a `AllyId` to be checked, as well as a precedence `DelayTranche` for when the assignment becomes valid.
 
 Assignment criteria come in three flavors, `RelayVRFModulo`, `RelayVRFDelay` and `RelayEquivocation`.  Among these, both `RelayVRFModulo` and `RelayVRFDelay` run a VRF whose input is the output of a `RelayVRFStory`, while `RelayEquivocation` runs a VRF whose input is the output of a `RelayEquivocationStory`.
 
@@ -156,7 +156,7 @@ We should verify approval on-chain to reward approval checkers. We therefore req
 
 In principle, all validators have some "tranche" at which they're assigned to the allychain candidate, which ensures we reach enough validators eventually.  As noted above, we often retract "no shows" when the slow validator eventually shows up, so witnessing their initially being a "no show" helps manage rewards.
 
-We expect on-chain verification should work in two phases:  We first record assignments notices and approval votes on-chain in relay chain block, doing the VRF or regular signature verification again in block verification, and inserting chain authenticated unsigned notes into the relay chain state that contain the checker, tranche, paraid, and relay block height for each assignment notice.  We then later have another relay chain block that runs some "approved" intrinsic, which extract all these notes from the state and feeds them into our approval code.
+We expect on-chain verification should work in two phases:  We first record assignments notices and approval votes on-chain in relay chain block, doing the VRF or regular signature verification again in block verification, and inserting chain authenticated unsigned notes into the relay chain state that contain the checker, tranche, allyid, and relay block height for each assignment notice.  We then later have another relay chain block that runs some "approved" intrinsic, which extract all these notes from the state and feeds them into our approval code.
 
 We now encounter one niche concern in the interaction between postponement and on-chain verification:  Any validator with a tranche zero (or other low) assignment could delay sending an assignment notice, like because they postponed their assigned tranche (which is allowed).  If they later send this assignment notices right around finality time, then they race with this approved. intrinsic:  If their announcement gets on-chain (also allowed), then yes it delays finality. If it does not get on-chain, then yes we've one announcement that the off-chain consensus system says is valid, but the chain ignores for being too slow.
 

@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use axia_node_subsystem_util::{
 	metrics,
@@ -90,7 +90,7 @@ impl metrics::Metrics for Metrics {
 			sent_requests: prometheus::register(
 				CounterVec::new(
 					Opts::new(
-						"allychain_dispute_distribution_sent_requests",
+						"axia_allychain_dispute_distribution_sent_requests",
 						"Total number of sent requests.",
 					),
 					&["success"],
@@ -99,7 +99,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			received_requests: prometheus::register(
 				Counter::new(
-					"allychain_dispute_distribution_received_requests",
+					"axia_allychain_dispute_distribution_received_requests",
 					"Total number of received dispute requests.",
 				)?,
 				registry,
@@ -107,7 +107,7 @@ impl metrics::Metrics for Metrics {
 			imported_requests: prometheus::register(
 				CounterVec::new(
 					Opts::new(
-						"allychain_dispute_distribution_imported_requests",
+						"axia_allychain_dispute_distribution_imported_requests",
 						"Total number of imported requests.",
 					),
 					&["success"],
@@ -116,7 +116,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			time_dispute_request: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_dispute_distribution_time_dispute_request",
+					"axia_allychain_dispute_distribution_time_dispute_request",
 					"Time needed for dispute votes to get confirmed/fail getting transmitted.",
 				))?,
 				registry,

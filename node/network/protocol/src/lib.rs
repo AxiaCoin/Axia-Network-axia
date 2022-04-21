@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Network protocol types for allychains.
 
@@ -35,7 +35,7 @@ pub use self::reputation::{ReputationChange, UnifiedReputationChange};
 /// Peer-sets and protocols used for allychains.
 pub mod peer_set;
 
-/// Request/response protocols used in AXIA.
+/// Request/response protocols used in Axia.
 pub mod request_response;
 
 /// Accessing authority discovery service
@@ -286,7 +286,7 @@ pub mod v1 {
 
 	use axia_primitives::v1::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
-		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
+		Id as AllyId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};
 
 	use axia_node_primitives::{
@@ -398,7 +398,7 @@ pub mod v1 {
 		/// Declare the intent to advertise collations under a collator ID, attaching a
 		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId, ParaId, CollatorSignature),
+		Declare(CollatorId, AllyId, CollatorSignature),
 		/// Advertise a collation to a validator. Can only be sent once the peer has
 		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]

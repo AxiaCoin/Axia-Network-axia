@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Test kit to simulate cross-chain message passing and XCM execution
 
@@ -25,7 +25,7 @@ pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::Phanto
 
 pub use axia_core_primitives::BlockNumber as RelayBlockNumber;
 pub use axia_allychain::primitives::{
-	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
+	DmpMessageHandler as DmpMessageHandlerT, Id as AllyId, XcmpMessageFormat,
 	XcmpMessageHandler as XcmpMessageHandlerT,
 };
 pub use axia_runtime_allychains::{
@@ -92,7 +92,7 @@ macro_rules! decl_test_relay_chain {
 
 		impl $crate::UmpSink for $name {
 			fn process_upward_message(
-				origin: $crate::ParaId,
+				origin: $crate::AllyId,
 				msg: &[u8],
 				max_weight: $crate::Weight,
 			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
@@ -125,7 +125,7 @@ macro_rules! decl_test_allychain {
 		impl $crate::XcmpMessageHandlerT for $name {
 			fn handle_xcmp_messages<
 				'a,
-				I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>,
+				I: Iterator<Item = ($crate::AllyId, $crate::RelayBlockNumber, &'a [u8])>,
 			>(
 				iter: I,
 				max_weight: $crate::Weight,
@@ -196,7 +196,7 @@ macro_rules! __impl_ext {
 }
 
 thread_local! {
-	pub static PARA_MESSAGE_BUS: RefCell<VecDeque<(ParaId, MultiLocation, Xcm<()>)>>
+	pub static PARA_MESSAGE_BUS: RefCell<VecDeque<(AllyId, MultiLocation, Xcm<()>)>>
 		= RefCell::new(VecDeque::new());
 	pub static RELAY_MESSAGE_BUS: RefCell<VecDeque<(MultiLocation, Xcm<()>)>>
 		= RefCell::new(VecDeque::new());
@@ -207,7 +207,7 @@ macro_rules! decl_test_network {
 	(
 		pub struct $name:ident {
 			relay_chain = $relay_chain:ty,
-			allychains = vec![ $( ($para_id:expr, $allychain:ty), )* ],
+			allychains = vec![ $( ($ally_id:expr, $allychain:ty), )* ],
 		}
 	) => {
 		pub struct $name;
@@ -236,13 +236,13 @@ macro_rules! decl_test_network {
 		fn process_para_messages() -> $crate::XcmResult {
 			use $crate::{UmpSink, XcmpMessageHandlerT};
 
-			while let Some((para_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
+			while let Some((ally_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
 				|b| b.borrow_mut().pop_front()) {
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let r = <$relay_chain>::process_upward_message(
-							para_id, &encoded[..],
+							ally_id, &encoded[..],
 							$crate::Weight::max_value(),
 						);
 						if let Err((id, required)) = r {
@@ -250,9 +250,9 @@ macro_rules! decl_test_network {
 						}
 					},
 					$(
-						$crate::X1($crate::Allychain(id)) if *id == $para_id && destination.parent_count() == 1 => {
+						$crate::X1($crate::Allychain(id)) if *id == $ally_id && destination.parent_count() == 1 => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
-							let messages = vec![(para_id, 1, &encoded[..])];
+							let messages = vec![(ally_id, 1, &encoded[..])];
 							let _weight = <$allychain>::handle_xcmp_messages(
 								messages.into_iter(),
 								$crate::Weight::max_value(),
@@ -276,7 +276,7 @@ macro_rules! decl_test_network {
 				|b| b.borrow_mut().pop_front()) {
 				match destination.interior() {
 					$(
-						$crate::X1($crate::Allychain(id)) if *id == $para_id && destination.parent_count() == 0 => {
+						$crate::X1($crate::Allychain(id)) if *id == $ally_id && destination.parent_count() == 0 => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							// NOTE: RelayChainBlockNumber is hard-coded to 1
 							let messages = vec![(1, encoded)];
@@ -295,7 +295,7 @@ macro_rules! decl_test_network {
 		/// XCM router for allychain.
 		pub struct AllychainXcmRouter<T>($crate::PhantomData<T>);
 
-		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for AllychainXcmRouter<T> {
+		impl<T: $crate::Get<$crate::AllyId>> $crate::SendXcm for AllychainXcmRouter<T> {
 			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
@@ -307,7 +307,7 @@ macro_rules! decl_test_network {
 						Ok(())
 					},
 					$(
-						$crate::X1($crate::Allychain(id)) if *id == $para_id && destination.parent_count() == 1 => {
+						$crate::X1($crate::Allychain(id)) if *id == $ally_id && destination.parent_count() == 1 => {
 							$crate::PARA_MESSAGE_BUS.with(
 								|b| b.borrow_mut().push_back((T::get(), destination, message)));
 							Ok(())
@@ -327,7 +327,7 @@ macro_rules! decl_test_network {
 				let destination = destination.into();
 				match destination.interior() {
 					$(
-						$crate::X1($crate::Allychain(id)) if *id == $para_id && destination.parent_count() == 0 => {
+						$crate::X1($crate::Allychain(id)) if *id == $ally_id && destination.parent_count() == 0 => {
 							$crate::RELAY_MESSAGE_BUS.with(
 								|b| b.borrow_mut().push_back((destination, message)));
 							Ok(())

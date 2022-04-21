@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! # Overseer
 //!
@@ -71,7 +71,10 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use axia_primitives::v1::{Block, BlockId, BlockNumber, Hash, AllychainHost};
+use axia_primitives::{
+	v1::{Block, BlockId, BlockNumber, Hash},
+	v2::AllychainHost,
+};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
 use axia_node_network_protocol::v1 as protocol_v1;
@@ -80,8 +83,8 @@ use axia_node_subsystem_types::messages::{
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, DisputeParticipationMessage,
-	GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage,
+	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
+	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
 	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use axia_node_subsystem_types::{
@@ -130,7 +133,13 @@ where
 {
 	fn head_supports_allychains(&self, head: &Hash) -> bool {
 		let id = BlockId::Hash(*head);
-		self.runtime_api().has_api::<dyn AllychainHost<Block>>(&id).unwrap_or(false)
+		// Check that the `AllychainHost` runtime api is at least with version 1 present on chain.
+		self.runtime_api()
+			.api_version::<dyn AllychainHost<Block>>(&id)
+			.ok()
+			.flatten()
+			.unwrap_or(0) >=
+			1
 	}
 }
 
@@ -411,6 +420,9 @@ pub struct Overseer<SupportsAllychains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
 	candidate_validation: CandidateValidation,
 
+	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	pvf_checker: PvfChecker,
+
 	#[subsystem(no_dispatch, CandidateBackingMessage)]
 	candidate_backing: CandidateBacking,
 
@@ -461,9 +473,6 @@ pub struct Overseer<SupportsAllychains> {
 
 	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
-
-	#[subsystem(no_dispatch, DisputeParticipationMessage)]
-	dispute_participation: DisputeParticipation,
 
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,
@@ -562,7 +571,10 @@ where
 
 		futures::future::ready(())
 	});
-	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	overseer
+		.spawner()
+		.spawn("metrics-metronome", Some("overseer"), Box::pin(metronome));
+
 	Ok(())
 }
 
@@ -616,11 +628,11 @@ where
 				},
 				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, s } => {
-							self.spawn_job(name, s);
+						ToOverseer::SpawnJob { name, subsystem, s } => {
+							self.spawn_job(name, subsystem, s);
 						}
-						ToOverseer::SpawnBlockingJob { name, s } => {
-							self.spawn_blocking_job(name, s);
+						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
 				},
@@ -772,11 +784,21 @@ where
 		}
 	}
 
-	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn(name, j);
+	fn spawn_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn(task_name, subsystem_name, j);
 	}
 
-	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn_blocking(name, j);
+	fn spawn_blocking_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn_blocking(task_name, subsystem_name, j);
 	}
 }

@@ -1,31 +1,31 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 mod mock;
 
 use mock::{
-	axiatest_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
+	axctest_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
 };
-use axia_allychain::primitives::Id as ParaId;
+use axia_allychain::primitives::Id as AllyId;
 use sp_runtime::traits::AccountIdConversion;
 use xcm::latest::prelude::*;
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
-pub const PARA_ID: u32 = 2000;
+pub const ALLY_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 pub const REGISTER_AMOUNT: Balance = 10 * CENTS;
 
@@ -40,27 +40,27 @@ fn buy_execution<C>() -> Instruction<C> {
 /// Asserts that the allychain accounts are updated as expected.
 #[test]
 fn withdraw_and_deposit_works() {
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
-	axiatest_like_with_balances(balances).execute_with(|| {
-		let other_para_id = 3000;
+	axctest_like_with_balances(balances).execute_with(|| {
+		let other_ally_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
 					max_assets: 1,
-					beneficiary: Allychain(other_para_id).into(),
+					beneficiary: Allychain(other_ally_id).into(),
 				},
 			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
-		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		let other_para_acc: AccountId = AllyId::from(other_ally_id).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 	});
@@ -77,16 +77,16 @@ fn withdraw_and_deposit_works() {
 #[test]
 fn query_holding_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
-	axiatest_like_with_balances(balances).execute_with(|| {
-		let other_para_id = 3000;
+	axctest_like_with_balances(balances).execute_with(|| {
+		let other_ally_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let query_id = 1234;
 		let weight = 4 * BaseXcmWeight::get();
 		let max_response_weight = 1_000_000_000;
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -98,7 +98,7 @@ fn query_holding_works() {
 				// is not triggered becasue the deposit fails
 				QueryHolding {
 					query_id,
-					dest: Allychain(PARA_ID).into(),
+					dest: Allychain(ALLY_ID).into(),
 					assets: All.into(),
 					max_response_weight,
 				},
@@ -118,19 +118,19 @@ fn query_holding_works() {
 
 		// now do a successful transfer
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
 					max_assets: 1,
-					beneficiary: Allychain(other_para_id).into(),
+					beneficiary: Allychain(other_ally_id).into(),
 				},
 				// used to get a notification in case of success
 				QueryHolding {
 					query_id,
-					dest: Allychain(PARA_ID).into(),
+					dest: Allychain(ALLY_ID).into(),
 					assets: All.into(),
 					max_response_weight: 1_000_000_000,
 				},
@@ -138,13 +138,13 @@ fn query_holding_works() {
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
-		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		let other_para_acc: AccountId = AllyId::from(other_ally_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
-				Allychain(PARA_ID).into(),
+				Allychain(ALLY_ID).into(),
 				Xcm(vec![QueryResponse {
 					query_id,
 					response: Response::Assets(vec![].into()),
@@ -156,7 +156,7 @@ fn query_holding_works() {
 }
 
 /// Scenario:
-/// A allychain wants to move AXCT from AXIATEST to Statemine.
+/// A allychain wants to move AXCT from AxiaTest to Statemine.
 /// The allychain sends an XCM to withdraw funds combined with a teleport to the destination.
 ///
 /// This way of moving funds from a relay to a allychain will only work for trusted chains.
@@ -166,31 +166,31 @@ fn query_holding_works() {
 #[test]
 fn teleport_to_statemine_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
-	axiatest_like_with_balances(balances).execute_with(|| {
+	axctest_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
-		let other_para_id = 3000;
+		let other_ally_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let teleport_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: (1, Allychain(PARA_ID)).into(),
+				beneficiary: (1, Allychain(ALLY_ID)).into(),
 			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 
 		// teleports are allowed to community chains, even in the absence of trust from their side.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				InitiateTeleport {
 					assets: All.into(),
-					dest: Allychain(other_para_id).into(),
+					dest: Allychain(other_ally_id).into(),
 					xcm: Xcm(teleport_effects.clone()),
 				},
 			]),
@@ -200,7 +200,7 @@ fn teleport_to_statemine_works() {
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
-				Allychain(other_para_id).into(),
+				Allychain(other_ally_id).into(),
 				Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
 					.into_iter()
 					.chain(teleport_effects.clone().into_iter())
@@ -208,9 +208,9 @@ fn teleport_to_statemine_works() {
 			)]
 		);
 
-		// teleports are allowed from statemine to axiatest.
+		// teleports are allowed from statemine to axctest.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -229,7 +229,7 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![
 				(
-					Allychain(other_para_id).into(),
+					Allychain(other_ally_id).into(),
 					Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
@@ -248,7 +248,7 @@ fn teleport_to_statemine_works() {
 }
 
 /// Scenario:
-/// A allychain wants to move AXCT from AXIATEST to the allychain.
+/// A allychain wants to move AXCT from AxiaTest to the allychain.
 /// It withdraws funds and then deposits them into the reserve account of the destination chain.
 /// to the destination.
 ///
@@ -256,29 +256,29 @@ fn teleport_to_statemine_works() {
 #[test]
 fn reserve_based_transfer_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
-	axiatest_like_with_balances(balances).execute_with(|| {
-		let other_para_id = 3000;
+	axctest_like_with_balances(balances).execute_with(|| {
+		let other_ally_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let transfer_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: (1, Allychain(PARA_ID)).into(),
+				beneficiary: (1, Allychain(ALLY_ID)).into(),
 			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositReserveAsset {
 					assets: All.into(),
 					max_assets: 1,
-					dest: Allychain(other_para_id).into(),
+					dest: Allychain(other_ally_id).into(),
 					xcm: Xcm(transfer_effects.clone()),
 				},
 			]),
@@ -289,7 +289,7 @@ fn reserve_based_transfer_works() {
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
-				Allychain(other_para_id).into(),
+				Allychain(other_ally_id).into(),
 				Xcm(vec![ReserveAssetDeposited((Parent, amount).into()), ClearOrigin,]
 					.into_iter()
 					.chain(transfer_effects.into_iter())

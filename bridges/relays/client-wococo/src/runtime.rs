@@ -1,37 +1,35 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Types that are specific to the Wococo runtime.
 
 use bp_messages::{LaneId, UnrewardedRelayersState};
-use bp_axia_core::AXIALike;
+use bp_axia_core::AxiaLike;
 use bp_runtime::Chain;
 use codec::{Decode, Encode};
 use frame_support::weights::Weight;
-
-/// Instance of messages pallet that is used to bridge with BetaNet chain.
-pub type WithBetaNetMessagesInstance = pallet_bridge_messages::DefaultInstance;
+use scale_info::TypeInfo;
 
 /// Unchecked Wococo extrinsic.
 pub type UncheckedExtrinsic = bp_axia_core::UncheckedExtrinsic<Call>;
 
-/// BetaNet account ownership digest from Wococo.
+/// Betanet account ownership digest from Wococo.
 ///
-/// The byte vector returned by this function should be signed with a BetaNet account private key.
-/// This way, the owner of `wococo_account_id` on BetaNet proves that the BetaNet account private key
+/// The byte vector returned by this function should be signed with a Betanet account private key.
+/// This way, the owner of `wococo_account_id` on Betanet proves that the Betanet account private key
 /// is also under his control.
 pub fn wococo_to_betanet_account_ownership_digest<Call, AccountId, SpecVersion>(
 	betanet_call: &Call,
@@ -54,50 +52,50 @@ where
 
 /// Wococo Runtime `Call` enum.
 ///
-/// The enum represents a subset of possible `Call`s we can send to BetaNet chain.
-/// Ideally this code would be auto-generated from Metadata, because we want to
+/// The enum represents a subset of possible `Call`s we can send to Betanet chain.
+/// Ideally this code would be auto-generated from metadata, because we want to
 /// avoid depending directly on the ENTIRE runtime just to get the encoding of `Dispatchable`s.
 ///
-/// All entries here (like pretty much in the entire file) must be kept in sync with BetaNet
+/// All entries here (like pretty much in the entire file) must be kept in sync with Betanet
 /// `construct_runtime`, so that we maintain SCALE-compatibility.
 ///
-/// See: https://github.com/axia/axia/blob/master/runtime/betanet/src/lib.rs
+/// See: [link](https://github.com/axiatech/axia/blob/master/runtime/betanet/src/lib.rs)
 #[allow(clippy::large_enum_variant)]
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
 pub enum Call {
 	/// System pallet.
 	#[codec(index = 0)]
 	System(SystemCall),
-	/// BetaNet bridge pallet.
+	/// Betanet bridge pallet.
 	#[codec(index = 40)]
-	BridgeGrandpaBetaNet(BridgeGrandpaBetaNetCall),
-	/// BetaNet messages pallet.
+	BridgeGrandpaBetanet(BridgeGrandpaBetanetCall),
+	/// Betanet messages pallet.
 	#[codec(index = 43)]
-	BridgeMessagesBetaNet(BridgeMessagesBetaNetCall),
+	BridgeMessagesBetanet(BridgeMessagesBetanetCall),
 }
 
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
 #[allow(non_camel_case_types)]
 pub enum SystemCall {
 	#[codec(index = 1)]
 	remark(Vec<u8>),
 }
 
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
 #[allow(non_camel_case_types)]
-pub enum BridgeGrandpaBetaNetCall {
+pub enum BridgeGrandpaBetanetCall {
 	#[codec(index = 0)]
 	submit_finality_proof(
-		<AXIALike as Chain>::Header,
-		bp_header_chain::justification::GrandpaJustification<<AXIALike as Chain>::Header>,
+		Box<<AxiaLike as Chain>::Header>,
+		bp_header_chain::justification::GrandpaJustification<<AxiaLike as Chain>::Header>,
 	),
 	#[codec(index = 1)]
-	initialize(bp_header_chain::InitializationData<<AXIALike as Chain>::Header>),
+	initialize(bp_header_chain::InitializationData<<AxiaLike as Chain>::Header>),
 }
 
-#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
+#[derive(Encode, Decode, Debug, PartialEq, Eq, Clone, TypeInfo)]
 #[allow(non_camel_case_types)]
-pub enum BridgeMessagesBetaNetCall {
+pub enum BridgeMessagesBetanetCall {
 	#[codec(index = 3)]
 	send_message(
 		LaneId,
@@ -118,7 +116,9 @@ pub enum BridgeMessagesBetaNetCall {
 	),
 	#[codec(index = 6)]
 	receive_messages_delivery_proof(
-		bridge_runtime_common::messages::source::FromBridgedChainMessagesDeliveryProof<bp_betanet::Hash>,
+		bridge_runtime_common::messages::source::FromBridgedChainMessagesDeliveryProof<
+			bp_betanet::Hash,
+		>,
 		UnrewardedRelayersState,
 	),
 }

@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! An abstraction over storage used by the chain selection subsystem.
 //!
@@ -27,6 +27,7 @@ use axia_primitives::v1::{CandidateHash, SessionIndex};
 use std::collections::HashMap;
 
 use super::db::v1::{CandidateVotes, RecentDisputes};
+use crate::error::FatalResult;
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -53,7 +54,7 @@ pub trait Backend {
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
 		I: IntoIterator<Item = BackendWriteOp>;
 }

@@ -1,7 +1,7 @@
 [package]
 name = "axia-node-subsystem"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions and the generated overseer"
 

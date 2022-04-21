@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Run a development instance of the BetaNet Axlib bridge node.
+# Run a development instance of the Betanet Axlib bridge node.
 # To override the default port just export BETANET_PORT=9955
 #
 # Note: This script will not work out of the box with the bridges
-# repo since it relies on a AXIA binary.
+# repo since it relies on a Axia binary.
 
 BETANET_PORT="${BETANET_PORT:-9955}"
 

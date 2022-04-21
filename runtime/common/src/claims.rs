@@ -1,5 +1,5 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
 // Axlib is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -165,6 +165,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	/// Configuration trait.
@@ -633,6 +634,16 @@ where
 		Ok(())
 	}
 
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		info: &DispatchInfoOf<Self::Call>,
+		len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(self.validate(who, call, info, len).map(|_| ())?)
+	}
+
 	// <weight>
 	// The weight of this logic is included in the `attest` dispatchable.
 	// </weight>
@@ -755,6 +766,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {

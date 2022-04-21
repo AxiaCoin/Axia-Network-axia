@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 
@@ -21,13 +21,14 @@ use std::convert::TryFrom;
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
+use ::test_helpers::TestCandidateBuilder;
 use parking_lot::Mutex;
 use axia_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use axia_node_subsystem_test_helpers as test_helpers;
 use axia_node_subsystem_util::TimeoutExt;
 use axia_primitives::v1::{
-	CandidateDescriptor, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
-	Id as ParaId, PersistedValidationData, ValidatorId,
+	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
+	PersistedValidationData, ValidatorId,
 };
 use axia_subsystem::{
 	errors::RuntimeApiError,
@@ -46,28 +47,6 @@ mod columns {
 const TEST_CONFIG: Config = Config { col_data: columns::DATA, col_meta: columns::META };
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>;
-
-#[derive(Default)]
-struct TestCandidateBuilder {
-	para_id: ParaId,
-	pov_hash: Hash,
-	relay_parent: Hash,
-	commitments_hash: Hash,
-}
-
-impl TestCandidateBuilder {
-	fn build(self) -> CandidateReceipt {
-		CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
-				pov_hash: self.pov_hash,
-				relay_parent: self.relay_parent,
-				..Default::default()
-			},
-			commitments_hash: self.commitments_hash,
-		}
-	}
-}
 
 #[derive(Clone)]
 struct TestClock {
@@ -261,7 +240,18 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 				RuntimeApiRequest::CandidateEvents(tx),
 			)) => {
 				assert_eq!(relay_parent, new_leaf);
-				tx.send(Err(RuntimeApiError::from("oh no".to_string()))).unwrap();
+				#[derive(Debug)]
+				struct FauxError;
+				impl std::error::Error for FauxError {}
+				impl std::fmt::Display for FauxError {
+					fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+						Ok(())
+					}
+				}
+				tx.send(Err(RuntimeApiError::Execution {
+					runtime_api_name: "faux",
+					source: Arc::new(FauxError),
+				})).unwrap();
 			}
 		);
 

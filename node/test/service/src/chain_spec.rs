@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Chain specifications for the test runtime.
 
@@ -21,21 +21,22 @@ use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use axia_primitives::v1::{AccountId, AssignmentId, ValidatorId, MAX_CODE_SIZE, MAX_POV_SIZE};
 use axia_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
-use axia_test_runtime::{constants::currency::AXCS, BABE_GENESIS_EPOCH_CONFIG};
+use axia_test_runtime::BABE_GENESIS_EPOCH_CONFIG;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::sr25519;
 use sp_runtime::Perbill;
+use test_runtime_constants::currency::AXCS;
 
 const DEFAULT_PROTOCOL_ID: &str = "axc";
 
 /// The `ChainSpec` parameterized for axia test runtime.
-pub type AXIAChainSpec =
-	service::GenericChainSpec<axia_test_runtime::GenesisConfig, Extensions>;
+pub type AxiaChainSpec =
+	sc_service::GenericChainSpec<axia_test_runtime::GenesisConfig, Extensions>;
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn axia_local_testnet_config() -> AXIAChainSpec {
-	AXIAChainSpec::from_genesis(
+pub fn axia_local_testnet_config() -> AxiaChainSpec {
+	AxiaChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
@@ -43,6 +44,7 @@ pub fn axia_local_testnet_config() -> AXIAChainSpec {
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
+		None,
 		None,
 		Default::default(),
 	)
@@ -157,10 +159,10 @@ fn axia_testnet_genesis(
 		authority_discovery: runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		claims: runtime::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: runtime::VestingConfig { vesting: vec![] },
-		sudo: runtime::SudoConfig { key: root_key },
+		sudo: runtime::SudoConfig { key: Some(root_key) },
 		configuration: runtime::ConfigurationConfig {
 			config: axia_runtime_allychains::configuration::HostConfiguration {
-				validation_upgrade_frequency: 10u32,
+				validation_upgrade_cooldown: 10u32,
 				validation_upgrade_delay: 5,
 				code_retention_period: 1200,
 				max_code_size: MAX_CODE_SIZE,
@@ -170,6 +172,7 @@ fn axia_testnet_genesis(
 				chain_availability_period: 4,
 				thread_availability_period: 4,
 				no_show_slots: 10,
+				minimum_validation_upgrade_delay: 5,
 				..Default::default()
 			},
 		},

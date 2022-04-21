@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Pallet to handle XCM messages.
 
@@ -71,6 +71,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -179,7 +180,7 @@ pub mod pallet {
 		/// \[ origin location, id, expected location \]
 		InvalidResponder(MultiLocation, QueryId, Option<MultiLocation>),
 		/// Expected query response has been received but the expected origin location placed in
-		/// storate by this runtime previously cannot be decoded. The query remains registered.
+		/// storage by this runtime previously cannot be decoded. The query remains registered.
 		///
 		/// This is unexpected (since a location placed in storage in a previously executing
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
@@ -484,8 +485,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -572,15 +573,21 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
-			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
+			let outcome = T::XcmExecutor::execute_xcm_in_credit(
+				origin_location,
+				message,
+				max_weight,
+				max_weight,
+			);
+			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
+			result
 		}
 
 		/// Extoll that a particular destination can be communicated with through a particular
@@ -721,8 +728,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
 		///   `dest` side. May not be empty.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
@@ -777,13 +784,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();
@@ -835,13 +841,12 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let ancestry = T::LocationInverter::ancestry();
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
-				.reanchored(&inv_dest)
+				.reanchored(&dest, &ancestry)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets: MultiAssets = assets.into();
@@ -1192,6 +1197,11 @@ pub mod pallet {
 		/// Note that a particular destination to whom we would like to send a message is unknown
 		/// and queue it for version discovery.
 		fn note_unknown_version(dest: &MultiLocation) {
+			log::trace!(
+				target: "xcm::pallet_xcm::note_unknown_version",
+				"XCM version is unknown for destination: {:?}",
+				dest,
+			);
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
 			VersionDiscoveryQueue::<T>::mutate(|q| {
 				if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
@@ -1214,7 +1224,14 @@ pub mod pallet {
 					Self::note_unknown_version(dest);
 					SafeXcmVersion::<T>::get()
 				})
-				.ok_or(())
+				.ok_or_else(|| {
+					log::trace!(
+						target: "xcm::pallet_xcm::wrap_version",
+						"Could not determine a version to wrap XCM for destination: {:?}",
+						dest,
+					);
+					()
+				})
 				.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
 		}
 	}
@@ -1248,6 +1265,12 @@ pub mod pallet {
 		fn stop(dest: &MultiLocation) -> XcmResult {
 			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
+		}
+
+		/// Return true if a location is subscribed to XCM version changes.
+		fn is_subscribed(dest: &MultiLocation) -> bool {
+			let versioned_dest = LatestVersionedMultiLocation(dest);
+			VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
 		}
 	}
 

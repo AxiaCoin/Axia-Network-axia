@@ -1,30 +1,30 @@
 [package]
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
-version = "0.9.12"
+version = "0.9.17"
 
 [dependencies]
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-arithmetic = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-frame-system = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-pallet-transaction-payment = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-std = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-arithmetic = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+frame-support = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+frame-system = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+pallet-transaction-payment = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 log = { version = "0.4.0", default-features = false }
 
-# AXIA dependencies
+# Axia dependencies
 axia-allychain = { path = "../../allychain", default-features = false }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-balances = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-balances = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 pallet-xcm = { path = "../pallet-xcm" }
 axia-runtime-allychains = { path = "../../runtime/allychains" }
 [features]

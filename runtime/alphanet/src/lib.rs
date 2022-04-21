@@ -1,20 +1,20 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The AXIA runtime. This can be compiled with `#[no_std]`, ready for Wasm.
+//! The Axia runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
@@ -22,15 +22,19 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use axia_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash, Id as AllyId, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
 use runtime_common::{
-	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
+	slots, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
 	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -44,22 +48,11 @@ use runtime_allychains::{
 	session_info as allychains_session_info, shared as allychains_shared, ump as allychains_ump,
 };
 
-use xcm::latest::prelude::*;
-use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, ChildAllychainAsNative,
-	ChildAllychainConvertsVia, ChildSystemAllychainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemAllychain, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds,
-};
-use xcm_executor::XcmExecutor;
-
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -95,14 +88,16 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
-use constants::{currency::*, fee::*, time::*};
+use alphanet_runtime_constants::{currency::*, fee::*, time::*};
 
 // Weights used in the runtime
 mod weights;
 
 // Voter bag threshold definitions.
-mod voter_bags;
+mod bag_thresholds;
+
+// XCM configurations.
+pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
@@ -111,18 +106,19 @@ mod tests;
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/// Runtime version (AlphaNet).
+/// Runtime version (Alphanet).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("alphanet"),
 	impl_name: create_runtime_str!("axia-alphanet"),
 	authoring_version: 2,
-	spec_version: 9122,
+	spec_version: 9170,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 7,
+	transaction_version: 10,
+	state_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -175,12 +171,14 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
+	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
 impl pallet_scheduler::Config for Runtime {
@@ -192,6 +190,25 @@ impl pallet_scheduler::Config for Runtime {
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
+	type PreimageProvider = Preimage;
+	type NoPreimagePostponement = NoPreimagePostponement;
+}
+
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
+	pub const PreimageByteDeposit: Balance = deposit(0, 1);
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
+	type Event = Event;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type MaxSize = PreimageMaxSize;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
@@ -243,7 +260,7 @@ impl pallet_indices::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * CENTS;
+	pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 	pub const MaxLocks: u32 = 50;
 	pub const MaxReserves: u32 = 50;
 }
@@ -382,6 +399,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type GovernanceFallback =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -394,7 +413,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
+	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
 }
 
 impl pallet_bags_list::Config for Runtime {
@@ -419,12 +438,13 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: pallet_staking::EraIndex = 28;
+	pub const BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -433,8 +453,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -454,22 +473,12 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominators map to iter voters, but also perform the bags-list migration and keep
-	// it up-to-date.
-	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
+	type SortedListProvider = BagsList;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
-	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
-	// One cent: $10,000 / MB
-	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
-	pub const InstantAllowed: bool = true;
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
@@ -552,6 +561,7 @@ where
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -616,6 +626,7 @@ impl pallet_identity::Config for Runtime {
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
 }
 
@@ -752,7 +763,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve{..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				Call::BagsList(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
@@ -819,10 +831,15 @@ impl allychains_inclusion::Config for Runtime {
 	type RewardValidators = allychains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl allychains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_allychains_paras::WeightInfo<Runtime>;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 parameter_types! {
@@ -831,7 +848,8 @@ parameter_types! {
 
 impl allychains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = crate::allychains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type UmpSink =
+		crate::allychains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }
@@ -842,9 +860,12 @@ impl allychains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
+	type WeightInfo = weights::runtime_allychains_hrmp::WeightInfo<Self>;
 }
 
-impl allychains_paras_inherent::Config for Runtime {}
+impl allychains_paras_inherent::Config for Runtime {
+	type WeightInfo = weights::runtime_allychains_paras_inherent::WeightInfo<Runtime>;
+}
 
 impl allychains_scheduler::Config for Runtime {}
 
@@ -855,6 +876,25 @@ impl allychains_initializer::Config for Runtime {
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
+
+parameter_types! {
+	pub const PermanentSlotLeasePeriodLength: u32 = 26;
+	pub const TemporarySlotLeasePeriodLength: u32 = 1;
+	pub const MaxPermanentSlots: u32 = 5;
+	pub const MaxTemporarySlots: u32 = 20;
+	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
+}
+
+impl assigned_slots::Config for Runtime {
+	type Event = Event;
+	type AssignSlotOrigin = EnsureRoot<AccountId>;
+	type Leaser = Slots;
+	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
+	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
+	type MaxPermanentSlots = MaxPermanentSlots;
+	type MaxTemporarySlots = MaxTemporarySlots;
+	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+}
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 2000 * CENTS;
@@ -881,6 +921,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -924,109 +965,6 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
-parameter_types! {
-	pub const WndLocation: MultiLocation = Here.into();
-	pub const Ancestry: MultiLocation = Here.into();
-	pub AlphaNetNetwork: NetworkId = NetworkId::Named(b"AlphaNet".to_vec());
-	pub CheckAccount: AccountId = XcmPallet::check_account();
-}
-
-pub type LocationConverter =
-	(ChildAllychainConvertsVia<ParaId, AccountId>, AccountId32Aliases<AlphaNetNetwork, AccountId>);
-
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
-	// Use this currency:
-	Balances,
-	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<WndLocation>,
-	// We can convert the MultiLocations with our converter above:
-	LocationConverter,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
-	AccountId,
-	// It's a native asset so we keep track of the teleports to maintain total issuance.
-	CheckAccount,
->;
-
-type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
-	ChildAllychainAsNative<allychains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<AlphaNetNetwork, Origin>,
-	ChildSystemAllychainAsSuperuser<ParaId, Origin>,
-);
-
-/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
-/// individual routers.
-pub type XcmRouter = (
-	// Only one router so far - use DMP to communicate with child allychains.
-	xcm_sender::ChildAllychainRouter<Runtime, XcmPallet>,
-);
-
-parameter_types! {
-	pub const Westmint: MultiLocation = Allychain(1000).into();
-	pub const AlphaNetForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
-	pub const MaxInstructions: u32 = 100;
-}
-pub type TrustedTeleporters = (xcm_builder::Case<AlphaNetForWestmint>,);
-
-/// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
-	// Weight that is paid for may be consumed.
-	TakeWeightCredit,
-	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
-	// Messages coming from system allychains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemAllychain<ParaId>>,
-	// Expected responses are OK.
-	AllowKnownQueryResponses<XcmPallet>,
-	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<Everything>,
-);
-
-pub struct XcmConfig;
-impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
-	type XcmSender = XcmRouter;
-	type AssetTransactor = LocalAssetTransactor;
-	type OriginConverter = LocalOriginConverter;
-	type IsReserve = ();
-	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<weights::xcm::AlphaNetXcmWeight<Call>, Call, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = XcmPallet;
-	type AssetTrap = XcmPallet;
-	type AssetClaims = XcmPallet;
-	type SubscriptionService = XcmPallet;
-}
-
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
-pub type LocalOriginToLocation = (
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, AlphaNetNetwork>,
-);
-
-impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which rejects everything.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type Weigher = WeightInfoBounds<weights::xcm::AlphaNetXcmWeight<Call>, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1036,7 +974,7 @@ construct_runtime! {
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 1,
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
@@ -1045,6 +983,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session and era
+		// for im-online and staking.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
@@ -1068,6 +1008,9 @@ construct_runtime! {
 
 		// System scheduler.
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 20,
+
+		// Preimage registrar.
+		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 28,
 
 		// Sudo.
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 21,
@@ -1095,7 +1038,7 @@ construct_runtime! {
 		Initializer: allychains_initializer::{Pallet, Call, Storage} = 48,
 		Dmp: allychains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: allychains_ump::{Pallet, Call, Storage, Event} = 50,
-		Hrmp: allychains_hrmp::{Pallet, Call, Storage, Event<T>} = 51,
+		Hrmp: allychains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 51,
 		ParaSessionInfo: allychains_session_info::{Pallet, Storage} = 52,
 
 		// Allychain Onboarding Pallets. Start indices at 60 to leave room.
@@ -1104,9 +1047,10 @@ construct_runtime! {
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>} = 65,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
 }
 
@@ -1122,6 +1066,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -1138,11 +1083,94 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
-	(),
+	AllPalletsWithSystem,
+	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
+pub struct SchedulerMigrationV3;
+
+impl OnRuntimeUpgrade for SchedulerMigrationV3 {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Scheduler::migrate_v2_to_v3()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		Scheduler::pre_migrate_to_v3()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		Scheduler::post_migrate_to_v3()
+	}
+}
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalPalletPrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+}
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benches {
+	define_benchmarks!(
+		// Axia
+		// NOTE: Make sure to prefix these with `runtime_common::` so
+		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
+		[runtime_common::crowdloan, Crowdloan]
+		[runtime_common::paras_registrar, Registrar]
+		[runtime_common::slots, Slots]
+		[runtime_allychains::configuration, Configuration]
+		[runtime_allychains::hrmp, Hrmp]
+		[runtime_allychains::initializer, Initializer]
+		[runtime_allychains::paras, Paras]
+		[runtime_allychains::paras_inherent, ParaInherent]
+		// Axlib
+		[pallet_bags_list, BagsList]
+		[pallet_balances, Balances]
+		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[pallet_identity, Identity]
+		[pallet_im_online, ImOnline]
+		[pallet_indices, Indices]
+		[pallet_multisig, Multisig]
+		[pallet_offences, OffencesBench::<Runtime>]
+		[pallet_preimage, Preimage]
+		[pallet_proxy, Proxy]
+		[pallet_scheduler, Scheduler]
+		[pallet_session, SessionBench::<Runtime>]
+		[pallet_staking, Staking]
+		[frame_system, SystemBench::<Runtime>]
+		[pallet_timestamp, Timestamp]
+		[pallet_utility, Utility]
+		[pallet_vesting, Vesting]
+		// XCM
+		// NOTE: Make sure you point to the individual modules below.
+		[pallet_xcm_benchmarks::fungible, XcmBalances]
+		[pallet_xcm_benchmarks::generic, XcmGeneric]
+	);
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1203,7 +1231,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::AllychainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::AllychainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			allychains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1216,29 +1244,39 @@ sp_api::impl_runtime_apis! {
 			allychains_runtime_api_impl::availability_cores::<Runtime>()
 		}
 
-		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		fn persisted_validation_data(ally_id: AllyId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
-			allychains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+			allychains_runtime_api_impl::persisted_validation_data::<Runtime>(ally_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			ally_id: AllyId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			allychains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				ally_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
-			para_id: ParaId,
+			ally_id: AllyId,
 			outputs: primitives::v1::CandidateCommitments,
 		) -> bool {
-			allychains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+			allychains_runtime_api_impl::check_validation_outputs::<Runtime>(ally_id, outputs)
 		}
 
 		fn session_index_for_child() -> SessionIndex {
 			allychains_runtime_api_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		fn validation_code(ally_id: AllyId, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode> {
-			allychains_runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
+			allychains_runtime_api_impl::validation_code::<Runtime>(ally_id, assumption)
 		}
 
-		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
-			allychains_runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
+		fn candidate_pending_availability(ally_id: AllyId) -> Option<CommittedCandidateReceipt<Hash>> {
+			allychains_runtime_api_impl::candidate_pending_availability::<Runtime>(ally_id)
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
@@ -1256,13 +1294,13 @@ sp_api::impl_runtime_apis! {
 			allychains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 
-		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
+		fn dmq_contents(recipient: AllyId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			allychains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
 		fn inbound_hrmp_channels_contents(
-			recipient: ParaId
-		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
+			recipient: AllyId
+		) -> BTreeMap<AllyId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			allychains_runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
@@ -1273,12 +1311,29 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			allychains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v2::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			allychains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			allychains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
+		}
+
+		fn validation_code_hash(ally_id: AllyId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			allychains_runtime_api_impl::validation_code_hash::<Runtime>(ally_id, assumption)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 
@@ -1450,7 +1505,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
 		) {
-			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
@@ -1458,44 +1513,12 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
-
-			// AXIA
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
-			list_benchmark!(list, extra, runtime_common::auctions, Auctions);
-			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
-			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
-			list_benchmark!(list, extra, runtime_common::slots, Slots);
-			list_benchmark!(list, extra, runtime_allychains::configuration, Configuration);
-			list_benchmark!(list, extra, runtime_allychains::initializer, Initializer);
-			list_benchmark!(list, extra, runtime_allychains::paras, Paras);
-
-			// Axlib
-			list_benchmark!(list, extra, pallet_bags_list, BagsList);
-			list_benchmark!(list, extra, pallet_balances, Balances);
-			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-			list_benchmark!(list, extra, pallet_identity, Identity);
-			list_benchmark!(list, extra, pallet_im_online, ImOnline);
-			list_benchmark!(list, extra, pallet_indices, Indices);
-			list_benchmark!(list, extra, pallet_multisig, Multisig);
-			list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_proxy, Proxy);
-			list_benchmark!(list, extra, pallet_scheduler, Scheduler);
-			list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_staking, Staking);
-			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
-			list_benchmark!(list, extra, pallet_utility, Utility);
-			list_benchmark!(list, extra, pallet_vesting, Vesting);
-
-			// XCM Benchmarks
-			// NOTE: Make sure you point to the individual modules below.
-			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
+			list_benchmarks!(list, extra);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
-
 			return (list, storage_info)
 		}
 
@@ -1505,7 +1528,7 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
@@ -1516,13 +1539,24 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
-			use xcm::latest::MultiAsset;
+			use xcm::latest::{
+				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
+				Response,
+			};
+			use xcm_config::{Westmint, WndLocation};
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
-				type XcmConfig = XcmConfig;
-				type AccountIdConverter = LocationConverter;
-				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+				type XcmConfig = xcm_config::XcmConfig;
+				type AccountIdConverter = xcm_config::LocationConverter;
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
+				}
+				fn worst_case_holding() -> MultiAssets {
+					// Alphanet only knows about WND.
+					vec![MultiAsset{
+						id: Concrete(WndLocation::get()),
+						fun: Fungible(1_000_000 * UNITS),
+					}].into()
 				}
 			}
 
@@ -1536,7 +1570,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
-				type CheckedAccount = CheckAccount;
+				type CheckedAccount = xcm_config::CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
 
 				fn get_multi_asset() -> MultiAsset {
@@ -1547,7 +1581,31 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Response::Version(Default::default()))
+				}
+
+				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Westmint::get())
+				}
+
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+					let origin = Westmint::get();
+					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Ok((origin, ticket, assets))
+				}
+			}
+
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1573,40 +1631,8 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
-			// AXIA
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
-			add_benchmark!(params, batches, runtime_common::auctions, Auctions);
-			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
-			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
-			add_benchmark!(params, batches, runtime_common::slots, Slots);
-			add_benchmark!(params, batches, runtime_allychains::configuration, Configuration);
-			add_benchmark!(params, batches, runtime_allychains::initializer, Initializer);
-			add_benchmark!(params, batches, runtime_allychains::paras, Paras);
+			add_benchmarks!(params, batches);
 
-			// Axlib
-			add_benchmark!(params, batches, pallet_bags_list, BagsList);
-			add_benchmark!(params, batches, pallet_balances, Balances);
-			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-			add_benchmark!(params, batches, pallet_identity, Identity);
-			add_benchmark!(params, batches, pallet_im_online, ImOnline);
-			add_benchmark!(params, batches, pallet_indices, Indices);
-			add_benchmark!(params, batches, pallet_multisig, Multisig);
-			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_proxy, Proxy);
-			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
-			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_staking, Staking);
-			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
-			add_benchmark!(params, batches, pallet_utility, Utility);
-			add_benchmark!(params, batches, pallet_vesting, Vesting);
-
-			// XCM Benchmarks
-			// NOTE: Make sure you point to the individual modules below.
-			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
-
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}

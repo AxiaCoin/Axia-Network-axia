@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Prometheus metrics related to the validation host.
 
@@ -93,7 +93,7 @@ impl metrics::Metrics for Metrics {
 			worker_spawning: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_spawning",
+						"axia_pvf_worker_spawning",
 						"The total number of workers began to spawn",
 					),
 					&["flavor"],
@@ -103,7 +103,7 @@ impl metrics::Metrics for Metrics {
 			worker_spawned: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_spawned",
+						"axia_pvf_worker_spawned",
 						"The total number of workers spawned successfully",
 					),
 					&["flavor"],
@@ -113,7 +113,7 @@ impl metrics::Metrics for Metrics {
 			worker_retired: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"pvf_worker_retired",
+						"axia_pvf_worker_retired",
 						"The total number of workers retired, either killed by the host or died on duty",
 					),
 					&["flavor"],
@@ -122,28 +122,28 @@ impl metrics::Metrics for Metrics {
 			)?,
 			prepare_enqueued: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_prepare_enqueued",
+					"axia_pvf_prepare_enqueued",
 					"The total number of jobs enqueued into the preparation pipeline"
 				)?,
 				registry,
 			)?,
 			prepare_concluded: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_prepare_concluded",
+					"axia_pvf_prepare_concluded",
 					"The total number of jobs concluded in the preparation pipeline"
 				)?,
 				registry,
 			)?,
 			execute_enqueued: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_execute_enqueued",
+					"axia_pvf_execute_enqueued",
 					"The total number of jobs enqueued into the execution pipeline"
 				)?,
 				registry,
 			)?,
 			execute_finished: prometheus::register(
 				prometheus::Counter::new(
-					"pvf_execute_finished",
+					"axia_pvf_execute_finished",
 					"The total number of jobs done in the execution pipeline"
 				)?,
 				registry,
@@ -151,18 +151,43 @@ impl metrics::Metrics for Metrics {
 			preparation_time: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"pvf_preparation_time",
-						"Time spent in preparing PVF artifacts",
+						"axia_pvf_preparation_time",
+						"Time spent in preparing PVF artifacts in seconds",
 					)
+					.buckets(vec![
+						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// src/prepare/worker.rs
+						0.1,
+						0.5,
+						1.0,
+						2.0,
+						3.0,
+						10.0,
+						20.0,
+						30.0,
+						60.0,
+					]),
 				)?,
 				registry,
 			)?,
 			execution_time: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"pvf_execution_time",
+						"axia_pvf_execution_time",
 						"Time spent in executing PVFs",
-					)
+					).buckets(vec![
+						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
+						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						0.1,
+						0.25,
+						0.5,
+						1.0,
+						2.0,
+						3.0,
+						4.0,
+						5.0,
+						6.0,
+					]),
 				)?,
 				registry,
 			)?,
@@ -208,7 +233,7 @@ impl<'a> WorkerRelatedMetrics<'a> {
 	/// When the worker was killed or died.
 	pub(crate) fn on_retired(&self) {
 		if let Some(metrics) = &self.metrics.0 {
-			metrics.worker_spawned.with_label_values(&[self.flavor.as_label()]).inc();
+			metrics.worker_retired.with_label_values(&[self.flavor.as_label()]).inc();
 		}
 	}
 }

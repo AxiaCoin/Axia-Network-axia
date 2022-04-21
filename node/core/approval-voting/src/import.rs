@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Block import logic for the approval voting subsystem.
 //!
@@ -76,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	session_window: &'a RollingSessionWindow,
+	session_window: &'a Option<RollingSessionWindow>,
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -133,7 +133,11 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		if env.session_window.earliest_session().map_or(true, |e| session_index < e) {
+		if env
+			.session_window
+			.as_ref()
+			.map_or(true, |s| session_index < s.earliest_session())
+		{
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -162,7 +166,7 @@ async fn imported_block_info(
 		// block in BABE has the epoch _it was authored in_ within its post-state. So we use the
 		// block, and not its parent.
 		//
-		// It's worth nothing that AXIA session changes, at least for the purposes of allychains,
+		// It's worth nothing that Axia session changes, at least for the purposes of allychains,
 		// would function the same way, except for the fact that they're always delayed by one block.
 		// This gives us the opposite invariant for sessions - the parent block's post-state gives
 		// us the canonical information about the session index for any of its children, regardless
@@ -180,7 +184,8 @@ async fn imported_block_info(
 		}
 	};
 
-	let session_info = match env.session_window.session_info(session_index) {
+	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index))
+	{
 		Some(s) => s,
 		None => {
 			tracing::debug!(
@@ -298,7 +303,7 @@ pub(crate) async fn handle_new_head(
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	// Update session info based on most recent head.
+	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -324,7 +329,8 @@ pub(crate) async fn handle_new_head(
 		}
 	};
 
-	match state.session_window.cache_session_info_for_head(ctx, head).await {
+	// Update session info based on most recent head.
+	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -335,7 +341,7 @@ pub(crate) async fn handle_new_head(
 
 			return Ok(Vec::new())
 		},
-		Ok(a @ SessionWindowUpdate::Advanced { .. }) => {
+		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
 			tracing::info!(
 				target: LOG_TARGET,
 				update = ?a,
@@ -345,9 +351,10 @@ pub(crate) async fn handle_new_head(
 		Ok(_) => {},
 	}
 
-	// If we've just started the node and haven't yet received any finality notifications,
-	// we don't do any look-back. Approval voting is only for nodes were already online.
-	let lower_bound_number = finalized_number.unwrap_or(header.number.saturating_sub(1));
+	// If we've just started the node and are far behind,
+	// import at most `MAX_HEADS_LOOK_BACK` blocks.
+	let lower_bound_number = header.number.saturating_sub(MAX_HEADS_LOOK_BACK);
+	let lower_bound_number = finalized_number.unwrap_or(lower_bound_number).max(lower_bound_number);
 
 	let new_blocks = determine_new_blocks(
 		ctx.sender(),
@@ -431,8 +438,9 @@ pub(crate) async fn handle_new_head(
 
 		let session_info = state
 			.session_window
-			.session_info(session_index)
-			.expect("imported_block_info requires session to be available; qed");
+			.as_ref()
+			.and_then(|s| s.session_info(session_index))
+			.expect("imported_block_info requires session info to be available; qed");
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -446,7 +454,7 @@ pub(crate) async fn handle_new_head(
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
-		// cf. https://github.com/axia/axia/issues/2411
+		// cf. https://github.com/axiatech/axia/issues/2411
 		let num_candidates = included_candidates.len();
 		let approved_bitfield = {
 			if needed_approvals == 0 {
@@ -569,13 +577,14 @@ pub(crate) async fn handle_new_head(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
 	use kvdb::KeyValueDB;
 	use merlin::Transcript;
 	use axia_node_primitives::approval::{VRFOutput, VRFProof};
 	use axia_node_subsystem::messages::AllMessages;
 	use axia_node_subsystem_test_helpers::make_subsystem_context;
-	use axia_primitives::v1::{SessionInfo, ValidatorIndex};
+	use axia_primitives::{v1::ValidatorIndex, v2::SessionInfo};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -608,7 +617,7 @@ pub(crate) mod tests {
 
 	fn blank_state() -> State {
 		State {
-			session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
+			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
@@ -618,11 +627,11 @@ pub(crate) mod tests {
 
 	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
-			session_window: RollingSessionWindow::with_session_info(
+			session_window: Some(RollingSessionWindow::with_session_info(
 				APPROVAL_SESSIONS,
 				index,
 				vec![info],
-			),
+			)),
 			..blank_state()
 		}
 	}
@@ -678,6 +687,9 @@ pub(crate) mod tests {
 			n_delay_tranches: index as _,
 			no_show_slots: index as _,
 			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		}
 	}
 
@@ -708,9 +720,9 @@ pub(crate) mod tests {
 		};
 
 		let hash = header.hash();
-		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
-			r.descriptor.para_id = para_id;
+		let make_candidate = |ally_id| {
+			let mut r = dummy_candidate_receipt(dummy_hash());
+			r.descriptor.ally_id = ally_id;
 			r.descriptor.relay_parent = hash;
 			r
 		};
@@ -740,7 +752,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -822,9 +834,9 @@ pub(crate) mod tests {
 		};
 
 		let hash = header.hash();
-		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
-			r.descriptor.para_id = para_id;
+		let make_candidate = |ally_id| {
+			let mut r = dummy_candidate_receipt(dummy_hash());
+			r.descriptor.ally_id = ally_id;
 			r.descriptor.relay_parent = hash;
 			r
 		};
@@ -849,7 +861,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -924,9 +936,9 @@ pub(crate) mod tests {
 		};
 
 		let hash = header.hash();
-		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
-			r.descriptor.para_id = para_id;
+		let make_candidate = |ally_id| {
+			let mut r = dummy_candidate_receipt(dummy_hash());
+			r.descriptor.ally_id = ally_id;
 			r.descriptor.relay_parent = hash;
 			r
 		};
@@ -942,7 +954,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::new(APPROVAL_SESSIONS);
+			let session_window = None;
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1014,9 +1026,9 @@ pub(crate) mod tests {
 		};
 
 		let hash = header.hash();
-		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
-			r.descriptor.para_id = para_id;
+		let make_candidate = |ally_id| {
+			let mut r = dummy_candidate_receipt(dummy_hash());
+			r.descriptor.ally_id = ally_id;
 			r.descriptor.relay_parent = hash;
 			r
 		};
@@ -1037,11 +1049,11 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = RollingSessionWindow::with_session_info(
+			let session_window = Some(RollingSessionWindow::with_session_info(
 				APPROVAL_SESSIONS,
 				session,
 				vec![session_info],
-			);
+			));
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1133,6 +1145,9 @@ pub(crate) mod tests {
 			relay_vrf_modulo_samples: irrelevant,
 			n_delay_tranches: irrelevant,
 			no_show_slots: irrelevant,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
 		};
 
 		let slot = Slot::from(10);
@@ -1156,9 +1171,9 @@ pub(crate) mod tests {
 		};
 
 		let hash = header.hash();
-		let make_candidate = |para_id| {
-			let mut r = CandidateReceipt::default();
-			r.descriptor.para_id = para_id;
+		let make_candidate = |ally_id| {
+			let mut r = dummy_candidate_receipt(dummy_hash());
+			r.descriptor.ally_id = ally_id;
 			r.descriptor.relay_parent = hash;
 			r
 		};

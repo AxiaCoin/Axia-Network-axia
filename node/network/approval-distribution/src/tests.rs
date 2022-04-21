@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use assert_matches::assert_matches;
@@ -27,6 +27,10 @@ use axia_node_subsystem_util::TimeoutExt as _;
 use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
+
+fn dummy_signature() -> axia_primitives::v1::ValidatorSignature {
+	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+}
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,
@@ -254,7 +258,7 @@ fn try_import_the_same_assignment() {
 	});
 }
 
-/// <https://github.com/axia/axia/pull/2160#discussion_r547594835>
+/// <https://github.com/axiatech/axia/pull/2160#discussion_r547594835>
 ///
 /// 1. Send a view update that removes block B from their view.
 /// 2. Send a message from B that they incur `COST_UNEXPECTED_MESSAGE` for,
@@ -342,7 +346,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 /// Upon receiving them, they both will try to send the message each other.
 /// This test makes sure they will not punish each other for such duplicate messages.
 ///
-/// See <https://github.com/axia/axia/issues/2499>.
+/// See <https://github.com/axiatech/axia/issues/2499>.
 #[test]
 fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 	let parent_hash = Hash::repeat_byte(0xFF);
@@ -470,7 +474,7 @@ fn import_approval_happy_path() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
@@ -537,7 +541,7 @@ fn import_approval_bad() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, &peer_b, msg).await;
@@ -867,7 +871,7 @@ fn import_remotely_then_locally() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 		let msg = protocol_v1::ApprovalDistributionMessage::Approvals(vec![approval.clone()]);
 		send_message_from_peer(overseer, peer, msg).await;
@@ -922,7 +926,7 @@ fn sends_assignments_even_when_state_is_approved() {
 			block_hash: hash,
 			candidate_index,
 			validator: validator_index,
-			signature: Default::default(),
+			signature: dummy_signature(),
 		};
 
 		overseer_send(

@@ -1,30 +1,31 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use structopt::clap::arg_enum;
+use strum::{EnumString, EnumVariantNames};
 
-arg_enum! {
-	#[derive(Debug, PartialEq, Eq)]
-	/// Supported full bridges (headers + messages).
-	pub enum FullBridge {
-		MillauToRialto,
-		RialtoToMillau,
-		BetaNetToWococo,
-		WococoToBetaNet,
-	}
+#[derive(Debug, PartialEq, Eq, EnumString, EnumVariantNames)]
+#[strum(serialize_all = "kebab_case")]
+/// Supported full bridges (headers + messages).
+pub enum FullBridge {
+	MillauToRialto,
+	RialtoToMillau,
+	BetanetToWococo,
+	WococoToBetanet,
+	AxiaTestToAxia,
+	AxiaToAxiaTest,
 }
 
 impl FullBridge {
@@ -33,8 +34,10 @@ impl FullBridge {
 		match self {
 			Self::MillauToRialto => MILLAU_TO_RIALTO_INDEX,
 			Self::RialtoToMillau => RIALTO_TO_MILLAU_INDEX,
-			Self::BetaNetToWococo => BETANET_TO_WOCOCO_INDEX,
-			Self::WococoToBetaNet => WOCOCO_TO_BETANET_INDEX,
+			Self::BetanetToWococo => BETANET_TO_WOCOCO_INDEX,
+			Self::WococoToBetanet => WOCOCO_TO_BETANET_INDEX,
+			Self::AxiaTestToAxia => AXIATEST_TO_AXIA_INDEX,
+			Self::AxiaToAxiaTest => AXIA_TO_AXIATEST_INDEX,
 		}
 	}
 }
@@ -43,6 +46,8 @@ pub const RIALTO_TO_MILLAU_INDEX: u8 = 0;
 pub const MILLAU_TO_RIALTO_INDEX: u8 = 0;
 pub const BETANET_TO_WOCOCO_INDEX: u8 = 0;
 pub const WOCOCO_TO_BETANET_INDEX: u8 = 0;
+pub const AXIATEST_TO_AXIA_INDEX: u8 = 0;
+pub const AXIA_TO_AXIATEST_INDEX: u8 = 0;
 
 /// The macro allows executing bridge-specific code without going fully generic.
 ///
@@ -97,8 +102,8 @@ macro_rules! select_full_bridge {
 
 				$generic
 			}
-			FullBridge::BetaNetToWococo => {
-				type Source = relay_betanet_client::BetaNet;
+			FullBridge::BetanetToWococo => {
+				type Source = relay_betanet_client::Betanet;
 				#[allow(dead_code)]
 				type Target = relay_wococo_client::Wococo;
 
@@ -119,10 +124,10 @@ macro_rules! select_full_bridge {
 
 				$generic
 			}
-			FullBridge::WococoToBetaNet => {
+			FullBridge::WococoToBetanet => {
 				type Source = relay_wococo_client::Wococo;
 				#[allow(dead_code)]
-				type Target = relay_betanet_client::BetaNet;
+				type Target = relay_betanet_client::Betanet;
 
 				// Derive-account
 				#[allow(unused_imports)]
@@ -138,6 +143,50 @@ macro_rules! select_full_bridge {
 				// Send-message
 				#[allow(unused_imports)]
 				use relay_wococo_client::runtime::wococo_to_betanet_account_ownership_digest as account_ownership_digest;
+
+				$generic
+			}
+			FullBridge::AxiaTestToAxia => {
+				type Source = relay_axctest_client::AxiaTest;
+				#[allow(dead_code)]
+				type Target = relay_axia_client::Axia;
+
+				// Derive-account
+				#[allow(unused_imports)]
+				use bp_axia::derive_account_from_axctest_id as derive_account;
+
+				// Relay-messages
+				#[allow(unused_imports)]
+				use crate::chains::axctest_messages_to_axia::run as relay_messages;
+
+				// Send-message / Estimate-fee
+				#[allow(unused_imports)]
+				use bp_axia::TO_AXIA_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
+				// Send-message
+				#[allow(unused_imports)]
+				use relay_axctest_client::runtime::axctest_to_axia_account_ownership_digest as account_ownership_digest;
+
+				$generic
+			}
+			FullBridge::AxiaToAxiaTest => {
+				type Source = relay_axia_client::Axia;
+				#[allow(dead_code)]
+				type Target = relay_axctest_client::AxiaTest;
+
+				// Derive-account
+				#[allow(unused_imports)]
+				use bp_axctest::derive_account_from_axia_id as derive_account;
+
+				// Relay-messages
+				#[allow(unused_imports)]
+				use crate::chains::axia_messages_to_axctest::run as relay_messages;
+
+				// Send-message / Estimate-fee
+				#[allow(unused_imports)]
+				use bp_axctest::TO_AXIATEST_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
+				// Send-message
+				#[allow(unused_imports)]
+				use relay_axia_client::runtime::axia_to_axctest_account_ownership_digest as account_ownership_digest;
 
 				$generic
 			}

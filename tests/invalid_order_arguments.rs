@@ -1,4 +1,4 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
+// Copyright 2020 Axia Technologies (UK) Ltd.
 // This file is part of Axlib.
 
 // Axlib is free software: you can redistribute it and/or modify

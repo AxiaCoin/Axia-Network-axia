@@ -1,22 +1,22 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future, Future, SinkExt};
@@ -32,10 +32,14 @@ use sp_runtime::traits::AppVerify;
 use axia_node_network_protocol::{our_view, request_response::IncomingRequest, view};
 use axia_node_primitives::BlockData;
 use axia_node_subsystem_util::TimeoutExt;
-use axia_primitives::v1::{
-	AuthorityDiscoveryId, CandidateDescriptor, CollatorPair, GroupRotationInfo, ScheduledCore,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+use axia_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
+		ValidatorId, ValidatorIndex,
+	},
+	v2::SessionInfo,
 };
+use axia_primitives_test_helpers::TestCandidateBuilder;
 use axia_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -43,32 +47,9 @@ use axia_subsystem::{
 };
 use axia_subsystem_testhelpers as test_helpers;
 
-#[derive(Default)]
-struct TestCandidateBuilder {
-	para_id: ParaId,
-	pov_hash: Hash,
-	relay_parent: Hash,
-	commitments_hash: Hash,
-}
-
-impl TestCandidateBuilder {
-	fn build(self) -> CandidateReceipt {
-		CandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
-				pov_hash: self.pov_hash,
-				relay_parent: self.relay_parent,
-				..Default::default()
-			},
-			commitments_hash: self.commitments_hash,
-		}
-	}
-}
-
 #[derive(Clone)]
 struct TestState {
-	para_id: ParaId,
-	validators: Vec<Sr25519Keyring>,
+	ally_id: AllyId,
 	session_info: SessionInfo,
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
@@ -89,7 +70,7 @@ fn validator_authority_id(val_ids: &[Sr25519Keyring]) -> Vec<AuthorityDiscoveryI
 
 impl Default for TestState {
 	fn default() -> Self {
-		let para_id = ParaId::from(1);
+		let ally_id = AllyId::from(1);
 
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -112,7 +93,7 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let availability_core = CoreState::Scheduled(ScheduledCore { para_id, collator: None });
+		let availability_core = CoreState::Scheduled(ScheduledCore { ally_id, collator: None });
 
 		let relay_parent = Hash::random();
 
@@ -120,13 +101,21 @@ impl Default for TestState {
 		let collator_pair = CollatorPair::generate().0;
 
 		Self {
-			para_id,
-			validators,
+			ally_id,
 			session_info: SessionInfo {
 				validators: validator_public,
 				discovery_keys,
 				validator_groups,
-				..Default::default()
+				assignment_keys: vec![],
+				n_cores: 0,
+				zeroth_delay_tranche_width: 0,
+				relay_vrf_modulo_samples: 0,
+				n_delay_tranches: 0,
+				no_show_slots: 0,
+				needed_approvals: 0,
+				active_validator_indices: vec![],
+				dispute_period: 6,
+				random_seed: [0u8; 32],
 			},
 			group_rotation_info,
 			validator_peer_id,
@@ -276,7 +265,7 @@ async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal)
 
 // Setup the system by sending the `CollateOn`, `ActiveLeaves` and `OurViewChange` messages.
 async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
-	overseer_send(virtual_overseer, CollatorProtocolMessage::CollateOn(test_state.para_id)).await;
+	overseer_send(virtual_overseer, CollatorProtocolMessage::CollateOn(test_state.ally_id)).await;
 
 	overseer_signal(
 		virtual_overseer,
@@ -311,13 +300,13 @@ async fn distribute_collation(
 	// whether or not we expect a connection request or not.
 	should_connect: bool,
 ) -> DistributeCollation {
-	// Now we want to distribute a PoVBlock
+	// Now we want to distribute a `PoVBlock`
 	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
 
 	let pov_hash = pov_block.hash();
 
 	let candidate = TestCandidateBuilder {
-		para_id: test_state.para_id,
+		ally_id: test_state.ally_id,
 		relay_parent: test_state.relay_parent,
 		pov_hash,
 		..Default::default()
@@ -405,7 +394,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			axia_node_network_protocol::ObservedRole::Authority,
-			authority_id,
+			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)
 	.await;
@@ -448,7 +437,7 @@ async fn expect_declare_msg(
 				wire_message,
 				protocol_v1::CollatorProtocolMessage::Declare(
 					collator_id,
-					para_id,
+					ally_id,
 					signature,
 				) => {
 					assert!(signature.verify(
@@ -456,7 +445,7 @@ async fn expect_declare_msg(
 						&collator_id),
 					);
 					assert_eq!(collator_id, test_state.collator_pair.public());
-					assert_eq!(para_id, test_state.para_id);
+					assert_eq!(ally_id, test_state.ally_id);
 				}
 			);
 		}
@@ -531,7 +520,7 @@ fn advertise_and_send_collation() {
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(&mut virtual_overseer, &test_state, &peer_id).await;
 		}
@@ -555,7 +544,7 @@ fn advertise_and_send_collation() {
 				peer,
 				payload: CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
-					para_id: test_state.para_id,
+					ally_id: test_state.ally_id,
 				}
 				.encode(),
 				pending_response,
@@ -574,7 +563,7 @@ fn advertise_and_send_collation() {
 					peer,
 					payload: CollationFetchingRequest {
 						relay_parent: test_state.relay_parent,
-						para_id: test_state.para_id,
+						ally_id: test_state.ally_id,
 					}
 					.encode(),
 					pending_response,
@@ -624,7 +613,7 @@ fn advertise_and_send_collation() {
 				peer,
 				payload: CollationFetchingRequest {
 					relay_parent: old_relay_parent,
-					para_id: test_state.para_id,
+					ally_id: test_state.ally_id,
 				}
 				.encode(),
 				pending_response,
@@ -842,7 +831,7 @@ fn collators_reject_declare_messages() {
 				peer.clone(),
 				protocol_v1::CollatorProtocolMessage::Declare(
 					collator_pair2.public(),
-					ParaId::from(5),
+					AllyId::from(5),
 					collator_pair2.sign(b"garbage"),
 				),
 			)),
@@ -897,7 +886,7 @@ where
 
 		// We declare to the connected validators that we are a collator.
 		// We need to catch all `Declare` messages to the validators we've
-		// previosly connected to.
+		// previously connected to.
 		for peer_id in test_state.current_group_validator_peer_ids() {
 			expect_declare_msg(virtual_overseer, &test_state, &peer_id).await;
 		}
@@ -926,7 +915,7 @@ where
 				peer: validator_0,
 				payload: CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
-					para_id: test_state.para_id,
+					ally_id: test_state.ally_id,
 				}
 				.encode(),
 				pending_response,
@@ -961,7 +950,7 @@ where
 				peer: validator_1,
 				payload: CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
-					para_id: test_state.para_id,
+					ally_id: test_state.ally_id,
 				}
 				.encode(),
 				pending_response,

@@ -1,0 +1,93 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+# call for instance as:
+# ./bin/changelog v0.9.13
+#
+# You may set the ENV NO_CACHE to force fetching from Github
+# You should also ensure you set the ENV: GITHUB_TOKEN
+
+require_relative '../lib/changelog'
+require 'logger'
+
+logger = Logger.new($stdout)
+logger.level = Logger::DEBUG
+logger.debug('Starting')
+
+owner = 'axiatech'
+repo = 'axia'
+
+gh_axia = SubRef.new(format('%<owner>s/%<repo>s', { owner: owner, repo: repo }))
+last_release_ref = gh_axia.get_last_ref()
+
+axia_ref1 = ARGV[0] || last_release_ref
+axia_ref2 = ARGV[1] || 'HEAD'
+output = ARGV[2] || 'release-notes.md'
+
+ENV['REF1'] = axia_ref1
+ENV['REF2'] = axia_ref2
+
+axlib_ref1 = gh_axia.get_dependency_reference(axia_ref1, 'sp-io')
+axlib_ref2 = gh_axia.get_dependency_reference(axia_ref2, 'sp-io')
+
+logger.debug("Axia from:   #{axia_ref1}")
+logger.debug("Axia to:     #{axia_ref2}")
+
+logger.debug("Axlib from:  #{axlib_ref1}")
+logger.debug("Axlib to:    #{axlib_ref2}")
+
+axlib_data = 'axlib.json'
+axia_data = 'axia.json'
+
+logger.debug("Using AXLIB: #{axlib_data}")
+logger.debug("Using AXIA:  #{axia_data}")
+
+logger.warn('NO_CACHE set') if ENV['NO_CACHE']
+
+if ENV['NO_CACHE'] || !File.file?(axia_data)
+  logger.debug(format('Fetching data for Axia into %s', axia_data))
+  cmd = format('changelogerator %<owner>s/%<repo>s -f %<from>s -t %<to>s > %<output>s',
+               { owner: owner, repo: 'axia', from: axia_ref1, to: axia_ref2, output: axia_data })
+  system(cmd)
+else
+  logger.debug("Re-using:#{axia_data}")
+end
+
+if ENV['NO_CACHE'] || !File.file?(axlib_data)
+  logger.debug(format('Fetching data for Axlib into %s', axlib_data))
+  cmd = format('changelogerator %<owner>s/%<repo>s -f %<from>s -t %<to>s > %<output>s',
+               { owner: owner, repo: 'axlib', from: axlib_ref1, to: axlib_ref2, output: axlib_data })
+  system(cmd)
+else
+  logger.debug("Re-using:#{axlib_data}")
+end
+
+AXIATEST_DIGEST = ENV['AXIATEST_DIGEST'] || 'digests/axctest_srtool_output.json'
+ALPHANET_DIGEST = ENV['ALPHANET_DIGEST'] || 'digests/alphanet_srtool_output.json'
+AXIA_DIGEST = ENV['AXIA_DIGEST'] || 'digests/axia_srtool_output.json'
+
+# Here we compose all the pieces together into one
+# single big json file.
+cmd = format('jq \
+    --slurpfile axlib %s \
+    --slurpfile axia %s \
+    --slurpfile srtool_axctest %s \
+    --slurpfile srtool_alphanet %s \
+    --slurpfile srtool_axia %s \
+    -n \'{
+            axlib: $axlib[0],
+            axia: $axia[0],
+        srtool: [
+        { name: "axctest", data: $srtool_axctest[0] },
+        { name: "alphanet", data: $srtool_alphanet[0] },
+        { name: "axia", data: $srtool_axia[0] }
+    ] }\' > context.json', axlib_data, axia_data,
+             AXIATEST_DIGEST,
+             ALPHANET_DIGEST,
+             AXIA_DIGEST)
+system(cmd)
+
+cmd = format('tera --env --env-key env --include-path templates \
+        --template templates/template.md.tera context.json > %s', output)
+system(cmd)

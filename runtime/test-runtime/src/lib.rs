@@ -1,20 +1,20 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The AXIA runtime. This can be compiled with `#[no_std]`, ready for Wasm.
+//! The Axia runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
@@ -27,7 +27,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use axia_runtime_allychains::{
 	configuration as allychains_configuration, disputes as allychains_disputes,
 	dmp as allychains_dmp, hrmp as allychains_hrmp, inclusion as allychains_inclusion,
-	initializer as allychains_initializer, paras as allychains_paras,
+	initializer as allychains_initializer, origin as allychains_origin, paras as allychains_paras,
 	paras_inherent as allychains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
 	scheduler as allychains_scheduler, session_info as allychains_session_info,
 	shared as allychains_shared, ump as allychains_ump,
@@ -44,12 +44,15 @@ use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use axia_runtime_allychains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v1::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash as HashT, Id as AllyId, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+		ValidatorIndex,
+	},
+	v2::SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
@@ -63,7 +66,7 @@ use sp_runtime::{
 		BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, OpaqueKeys,
 		SaturatedConversion, StaticLookup, Verify,
 	},
-	transaction_validity::{TransactionSource, TransactionValidity},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
@@ -81,9 +84,8 @@ pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-pub mod constants;
+use test_runtime_constants::{currency::*, fee::*, time::*};
 pub mod xcm_config;
-use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -98,6 +100,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -149,6 +152,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -305,9 +309,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: pallet_staking::EraIndex = 28;
+	pub storage BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub storage SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -320,7 +324,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 = 16;
+	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -345,6 +349,7 @@ impl pallet_staking::Config for Runtime {
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type WeightInfo = ();
 }
 
@@ -384,6 +389,7 @@ where
 		let current_block = System::block_number().saturated_into::<u64>().saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -428,7 +434,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub Prefix: &'static [u8] = b"Pay AXCTs to the AXIATEST account:";
+	pub Prefix: &'static [u8] = b"Pay AXCTs to the AxiaTest account:";
 }
 
 impl claims::Config for Runtime {
@@ -476,7 +482,9 @@ impl allychains_disputes::Config for Runtime {
 	type WeightInfo = allychains_disputes::TestWeightInfo;
 }
 
-impl allychains_paras_inherent::Config for Runtime {}
+impl allychains_paras_inherent::Config for Runtime {
+	type WeightInfo = allychains_paras_inherent::TestWeightInfo;
+}
 
 impl allychains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -486,10 +494,15 @@ impl allychains_initializer::Config for Runtime {
 
 impl allychains_session_info::Config for Runtime {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl allychains_paras::Config for Runtime {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = allychains_paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 impl allychains_dmp::Config for Runtime {}
@@ -536,11 +549,14 @@ impl allychains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = Balances;
+	type WeightInfo = allychains_hrmp::TestWeightInfo;
 }
 
 impl allychains_scheduler::Config for Runtime {}
 
 impl paras_sudo_wrapper::Config for Runtime {}
+
+impl allychains_origin::Config for Runtime {}
 
 impl pallet_test_notifier::Config for Runtime {
 	type Event = Event;
@@ -665,10 +681,11 @@ construct_runtime! {
 		ParaInclusion: allychains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: allychains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: allychains_initializer::{Pallet, Call, Storage},
-		Paras: allychains_paras::{Pallet, Call, Storage, Origin, Event},
+		Paras: allychains_paras::{Pallet, Call, Storage, Event},
 		ParasShared: allychains_shared::{Pallet, Call, Storage},
 		Scheduler: allychains_scheduler::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		ParasOrigin: allychains_origin::{Pallet, Origin},
 		ParaSessionInfo: allychains_session_info::{Pallet, Storage},
 		Hrmp: allychains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: allychains_ump::{Pallet, Call, Storage, Event},
@@ -694,6 +711,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The `SignedExtension` to the basic transaction logic.
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -710,7 +728,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -782,7 +800,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v1::AllychainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::v2::AllychainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_impl::validators::<Runtime>()
 		}
@@ -795,31 +813,41 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 
-		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		fn persisted_validation_data(ally_id: AllyId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>>
 		{
-			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+			runtime_impl::persisted_validation_data::<Runtime>(ally_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			ally_id: AllyId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			runtime_impl::assumed_validation_data::<Runtime>(
+				ally_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
-			para_id: ParaId,
+			ally_id: AllyId,
 			outputs: primitives::v1::CandidateCommitments,
 		) -> bool {
-			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+			runtime_impl::check_validation_outputs::<Runtime>(ally_id, outputs)
 		}
 
 		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
+		fn validation_code(ally_id: AllyId, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode>
 		{
-			runtime_impl::validation_code::<Runtime>(para_id, assumption)
+			runtime_impl::validation_code::<Runtime>(ally_id, assumption)
 		}
 
-		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
-			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
+		fn candidate_pending_availability(ally_id: AllyId) -> Option<CommittedCandidateReceipt<Hash>> {
+			runtime_impl::candidate_pending_availability::<Runtime>(ally_id)
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
@@ -832,14 +860,14 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn dmq_contents(
-			recipient: ParaId,
+			recipient: AllyId,
 		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			runtime_impl::dmq_contents::<Runtime>(recipient)
 		}
 
 		fn inbound_hrmp_channels_contents(
-			recipient: ParaId,
-		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
+			recipient: AllyId,
+		) -> BTreeMap<AllyId, Vec<InboundHrmpMessage<BlockNumber>>> {
 			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
@@ -850,12 +878,29 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v2::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			runtime_impl::pvfs_require_precheck::<Runtime>()
+		}
+
+		fn validation_code_hash(ally_id: AllyId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCodeHash>
+		{
+			runtime_impl::validation_code_hash::<Runtime>(ally_id, assumption)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
-		fn validator_set() -> beefy_primitives::ValidatorSet<BeefyId> {
+		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
-			beefy_primitives::ValidatorSet { validators: Vec::new(), id: 0 }
+			None
 		}
 	}
 

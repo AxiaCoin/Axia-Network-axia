@@ -1,33 +1,33 @@
 [package]
 name = "axia-test-client"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 
-# AXIA dependencies
+# Axia dependencies
 axia-test-runtime = { path = "../../../runtime/test-runtime" }
 axia-test-service = { path = "../service" }
 axia-primitives = { path = "../../../primitives" }
 axia-node-subsystem = { path = "../../subsystem" }
 
 # Axlib dependencies
-axlib-test-client = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-service = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-block-builder = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-consensus = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-blockchain = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-inherents = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-timestamp = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-consensus = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-consensus-babe = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-state-machine = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axlib-test-client = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-service = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-block-builder = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-consensus = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-blockchain = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-inherents = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-timestamp = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-consensus = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-consensus-babe = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-state-machine = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-futures = "0.3.17"
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+futures = "0.3.21"

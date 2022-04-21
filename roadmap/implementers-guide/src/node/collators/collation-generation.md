@@ -25,13 +25,13 @@ The process of generating a collation for a allychain is very allychain-specific
 ///
 /// This differs from `CandidateCommitments` in two ways:
 ///
-/// - does not contain the erasure root; that's computed at the AXIA level, not at Cumulus
+/// - does not contain the erasure root; that's computed at the Axia level, not at Cumulus
 /// - contains a proof of validity.
 pub struct Collation {
   /// Messages destined to be interpreted by the Relay chain itself.
   pub upward_messages: Vec<UpwardMessage>,
   /// The horizontal messages sent by the allychain.
-  pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
+  pub horizontal_messages: Vec<OutboundHrmpMessage<AllyId>>,
   /// New validation code.
   pub new_validation_code: Option<ValidationCode>,
   /// The head-data produced as a result of execution.
@@ -88,7 +88,7 @@ pub struct CollationGenerationConfig {
   /// Collation function. See [`CollatorFn`] for more details.
   pub collator: CollatorFn,
   /// The allychain that this collator collates for
-  pub para_id: ParaId,
+  pub ally_id: AllyId,
 }
 ```
 
@@ -98,8 +98,8 @@ On `ActiveLeavesUpdate`:
 
 * If there is no collation generation config, ignore.
 * Otherwise, for each `activated` head in the update:
-  * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
-    > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/axia/axia/issues/1573).
+  * Determine if the ally is scheduled on any core by fetching the `availability_cores` Runtime API.
+    > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/axiatech/axia/issues/1573).
   * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
   * Use the Runtime API subsystem to fetch the full validation data.
   * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.

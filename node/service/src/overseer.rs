@@ -1,18 +1,18 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry, SpawnNamed};
 use lru::LruCache;
@@ -22,6 +22,7 @@ use axia_node_core_av_store::Config as AvailabilityConfig;
 use axia_node_core_candidate_validation::Config as CandidateValidationConfig;
 use axia_node_core_chain_selection::Config as ChainSelectionConfig;
 use axia_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
+use axia_node_core_provisioner::ProvisionerConfig;
 use axia_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(any(feature = "malus", test))]
 pub use axia_overseer::{
@@ -29,11 +30,11 @@ pub use axia_overseer::{
 	HeadSupportsAllychains,
 };
 use axia_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, OverseerBuilder,
-	OverseerConnector, OverseerHandle,
+	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
+	Overseer, OverseerConnector, OverseerHandle,
 };
 
-use axia_primitives::v1::AllychainHost;
+use axia_primitives::v2::AllychainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
@@ -59,10 +60,10 @@ pub use axia_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use axia_node_core_chain_api::ChainApiSubsystem;
 pub use axia_node_core_chain_selection::ChainSelectionSubsystem;
 pub use axia_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
-pub use axia_node_core_dispute_participation::DisputeParticipationSubsystem;
-pub use axia_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+pub use axia_node_core_provisioner::ProvisionerSubsystem;
+pub use axia_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use axia_node_core_runtime_api::RuntimeApiSubsystem;
-pub use axia_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+pub use axia_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
 pub struct OverseerGenArgs<'a, Spawner, RuntimeClient>
@@ -107,6 +108,10 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
+	/// Enable to disputes.
+	pub disputes_enabled: bool,
+	/// Enable PVF pre-checking
+	pub pvf_checker_enabled: bool,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -133,12 +138,15 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
+		disputes_enabled,
+		pvf_checker_enabled,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
-	OverseerBuilder<
+	InitializedOverseerBuilder<
 		Spawner,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
+		PvfCheckerSubsystem,
 		CandidateBackingSubsystem<Spawner>,
 		StatementDistributionSubsystem,
 		AvailabilityDistributionSubsystem,
@@ -159,7 +167,6 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		ApprovalVotingSubsystem,
 		GossipSupportSubsystem<AuthorityDiscoveryService>,
 		DisputeCoordinatorSubsystem,
-		DisputeParticipationSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
 	>,
@@ -206,6 +213,11 @@ where
 			Metrics::register(registry)?, // candidate-validation metrics
 			Metrics::register(registry)?, // validation host metrics
 		))
+		.pvf_checker(PvfCheckerSubsystem::new(
+			pvf_checker_enabled,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
@@ -230,7 +242,11 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?))
+		.provisioner(ProvisionerSubsystem::new(
+			spawner.clone(),
+			ProvisionerConfig { disputes_enabled },
+			Metrics::register(registry)?,
+		))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -252,14 +268,18 @@ where
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
 			authority_discovery_service.clone(),
-		))
-		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
-			allychains_db.clone(),
-			dispute_coordinator_config,
-			keystore.clone(),
 			Metrics::register(registry)?,
 		))
-		.dispute_participation(DisputeParticipationSubsystem::new())
+		.dispute_coordinator(if disputes_enabled {
+			DisputeCoordinatorSubsystem::new(
+				allychains_db.clone(),
+				dispute_coordinator_config,
+				keystore.clone(),
+				Metrics::register(registry)?,
+			)
+		} else {
+			DisputeCoordinatorSubsystem::dummy()
+		})
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,

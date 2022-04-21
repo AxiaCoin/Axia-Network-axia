@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
 	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
@@ -22,7 +22,7 @@ use frame_support::{
 	assert_noop, assert_ok,
 	traits::{Currency, Hooks},
 };
-use axia_allychain::primitives::{AccountIdConversion, Id as ParaId};
+use axia_allychain::primitives::{AccountIdConversion, Id as AllyId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
 use xcm::prelude::*;
@@ -31,14 +31,14 @@ use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
-const PARA_ID: u32 = 2000;
+const ALLY_ID: u32 = 2000;
 const INITIAL_BALANCE: u128 = 100;
 const SEND_AMOUNT: u128 = 10;
 
 #[test]
 fn report_outcome_notify_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
@@ -50,7 +50,7 @@ fn report_outcome_notify_works() {
 	};
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::report_outcome_notify(&mut message, Allychain(PARA_ID).into(), notify, 100)
+		XcmPallet::report_outcome_notify(&mut message, Allychain(ALLY_ID).into(), notify, 100)
 			.unwrap();
 		assert_eq!(
 			message,
@@ -64,14 +64,14 @@ fn report_outcome_notify_works() {
 			])
 		);
 		let status = QueryStatus::Pending {
-			responder: MultiLocation::from(Allychain(PARA_ID)).into(),
+			responder: MultiLocation::from(Allychain(ALLY_ID)).into(),
 			maybe_notify: Some((4, 2)),
 			timeout: 100,
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
@@ -84,7 +84,7 @@ fn report_outcome_notify_works() {
 			last_events(2),
 			vec![
 				Event::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
-					Allychain(PARA_ID).into(),
+					Allychain(ALLY_ID).into(),
 					0,
 					Response::ExecutionResult(None),
 				)),
@@ -98,14 +98,14 @@ fn report_outcome_notify_works() {
 #[test]
 fn report_outcome_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
 		beneficiary: sender.clone(),
 	}]);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::report_outcome(&mut message, Allychain(PARA_ID).into(), 100).unwrap();
+		XcmPallet::report_outcome(&mut message, Allychain(ALLY_ID).into(), 100).unwrap();
 		assert_eq!(
 			message,
 			Xcm(vec![
@@ -118,14 +118,14 @@ fn report_outcome_works() {
 			])
 		);
 		let status = QueryStatus::Pending {
-			responder: MultiLocation::from(Allychain(PARA_ID)).into(),
+			responder: MultiLocation::from(Allychain(ALLY_ID)).into(),
 			maybe_notify: None,
 			timeout: 100,
 		};
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
 
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Allychain(PARA_ID).into(),
+			Allychain(ALLY_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
 				response: Response::ExecutionResult(None),
@@ -150,7 +150,7 @@ fn report_outcome_works() {
 #[test]
 fn send_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
@@ -187,7 +187,7 @@ fn send_works() {
 #[test]
 fn send_fails_when_xcm_router_blocks() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
@@ -214,7 +214,7 @@ fn send_fails_when_xcm_router_blocks() {
 #[test]
 fn teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -255,7 +255,7 @@ fn teleport_assets_works() {
 #[test]
 fn limmited_teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -297,7 +297,7 @@ fn limmited_teleport_assets_works() {
 #[test]
 fn unlimmited_teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -337,7 +337,7 @@ fn unlimmited_teleport_assets_works() {
 #[test]
 fn reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -345,7 +345,7 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Box::new(Allychain(PARA_ID).into().into()),
+			Box::new(Allychain(ALLY_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
@@ -353,12 +353,12 @@ fn reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (allychain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				Allychain(PARA_ID).into(),
+				Allychain(ALLY_ID).into(),
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
@@ -383,7 +383,7 @@ fn reserve_transfer_assets_works() {
 #[test]
 fn limited_reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -391,7 +391,7 @@ fn limited_reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Box::new(Allychain(PARA_ID).into().into()),
+			Box::new(Allychain(ALLY_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
@@ -400,12 +400,12 @@ fn limited_reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (allychain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				Allychain(PARA_ID).into(),
+				Allychain(ALLY_ID).into(),
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
@@ -430,7 +430,7 @@ fn limited_reserve_transfer_assets_works() {
 #[test]
 fn unlimited_reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -438,7 +438,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Box::new(Allychain(PARA_ID).into().into()),
+			Box::new(Allychain(ALLY_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
@@ -447,12 +447,12 @@ fn unlimited_reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (allychain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = AllyId::from(ALLY_ID).into_account();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				Allychain(PARA_ID).into(),
+				Allychain(ALLY_ID).into(),
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
@@ -475,7 +475,7 @@ fn unlimited_reserve_transfer_assets_works() {
 #[test]
 fn execute_withdraw_to_deposit_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (AllyId::from(ALLY_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 3 * BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -861,7 +861,7 @@ fn subscriber_side_subscription_works() {
 	});
 }
 
-/// We should autosubscribe when we don't know the remote's version.
+/// We should auto-subscribe when we don't know the remote's version.
 #[test]
 fn auto_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {

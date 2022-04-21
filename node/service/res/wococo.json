@@ -7,7 +7,7 @@
   ],
   "telemetryEndpoints": [
     [
-      "/dns/telemetry.axia.io/tcp/443/x-axia-wss/%2Fsubmit%2F",
+      "ws://localhost:8001/submit/",
       0
     ]
   ],

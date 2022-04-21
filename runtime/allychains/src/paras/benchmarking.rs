@@ -1,24 +1,24 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use crate::{configuration::HostConfiguration, shared};
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
+use primitives::v1::{HeadData, Id as AllyId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
 // 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a big and
@@ -39,7 +39,7 @@ fn generate_disordered_pruning<T: Config>() {
 	let mut needs_pruning = Vec::new();
 
 	for i in 0..SAMPLE_SIZE {
-		let id = ParaId::from(i);
+		let id = AllyId::from(i);
 		let block_number = T::BlockNumber::from(1000u32);
 		needs_pruning.push((id, block_number));
 	}
@@ -47,12 +47,12 @@ fn generate_disordered_pruning<T: Config>() {
 	<Pallet<T> as Store>::PastCodePruning::put(needs_pruning);
 }
 
-fn generate_disordered_upgrades<T: Config>() {
+pub(crate) fn generate_disordered_upgrades<T: Config>() {
 	let mut upgrades = Vec::new();
 	let mut cooldowns = Vec::new();
 
 	for i in 0..SAMPLE_SIZE {
-		let id = ParaId::from(i);
+		let id = AllyId::from(i);
 		let block_number = T::BlockNumber::from(1000u32);
 		upgrades.push((id, block_number));
 		cooldowns.push((id, block_number));
@@ -67,7 +67,7 @@ fn generate_disordered_actions_queue<T: Config>() {
 	let next_session = shared::Pallet::<T>::session_index().saturating_add(One::one());
 
 	for _ in 0..SAMPLE_SIZE {
-		let id = ParaId::from(1000);
+		let id = AllyId::from(1000);
 		queue.push(id);
 	}
 
@@ -80,52 +80,64 @@ benchmarks! {
 	force_set_current_code {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
-		let para_id = ParaId::from(c as u32);
+		let ally_id = AllyId::from(c as u32);
+		<Pallet<T> as Store>::CurrentCodeHash::insert(&ally_id, new_code.hash());
 		generate_disordered_pruning::<T>();
-	}: _(RawOrigin::Root, para_id, new_code)
+	}: _(RawOrigin::Root, ally_id, new_code)
 	verify {
-		assert_last_event::<T>(Event::CurrentCodeUpdated(para_id).into());
+		assert_last_event::<T>(Event::CurrentCodeUpdated(ally_id).into());
 	}
 	force_set_current_head {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
 		let new_head = HeadData(vec![0; s as usize]);
-		let para_id = ParaId::from(1000);
-	}: _(RawOrigin::Root, para_id, new_head)
+		let ally_id = AllyId::from(1000);
+	}: _(RawOrigin::Root, ally_id, new_head)
 	verify {
-		assert_last_event::<T>(Event::CurrentHeadUpdated(para_id).into());
+		assert_last_event::<T>(Event::CurrentHeadUpdated(ally_id).into());
 	}
 	force_schedule_code_upgrade {
 		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
-		let para_id = ParaId::from(c as u32);
+		let ally_id = AllyId::from(c as u32);
 		let block = T::BlockNumber::from(c);
 		generate_disordered_upgrades::<T>();
-	}: _(RawOrigin::Root, para_id, new_code, block)
+	}: _(RawOrigin::Root, ally_id, new_code, block)
 	verify {
-		assert_last_event::<T>(Event::CodeUpgradeScheduled(para_id).into());
+		assert_last_event::<T>(Event::CodeUpgradeScheduled(ally_id).into());
 	}
 	force_note_new_head {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
-		let para_id = ParaId::from(1000);
+		let ally_id = AllyId::from(1000);
 		let new_head = HeadData(vec![0; s as usize]);
-		// schedule an expired code upgrade for this para_id so that force_note_new_head would use
+		let old_code_hash = ValidationCode(vec![0]).hash();
+		<Pallet<T> as Store>::CurrentCodeHash::insert(&ally_id, old_code_hash);
+		// schedule an expired code upgrade for this `ally_id` so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
 		let config = HostConfiguration::<T::BlockNumber>::default();
 		generate_disordered_pruning::<T>();
-		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
-	}: _(RawOrigin::Root, para_id, new_head)
+		Pallet::<T>::schedule_code_upgrade(ally_id, ValidationCode(vec![0]), expired, &config);
+	}: _(RawOrigin::Root, ally_id, new_head)
 	verify {
-		assert_last_event::<T>(Event::NewHeadNoted(para_id).into());
+		assert_last_event::<T>(Event::NewHeadNoted(ally_id).into());
 	}
 	force_queue_action {
-		let para_id = ParaId::from(1000);
+		let ally_id = AllyId::from(1000);
 		generate_disordered_actions_queue::<T>();
-	}: _(RawOrigin::Root, para_id)
+	}: _(RawOrigin::Root, ally_id)
 	verify {
 		let next_session = crate::shared::Pallet::<T>::session_index().saturating_add(One::one());
-		assert_last_event::<T>(Event::ActionQueued(para_id, next_session).into());
+		assert_last_event::<T>(Event::ActionQueued(ally_id, next_session).into());
 	}
+
+	add_trusted_validation_code {
+		let c in 1 .. MAX_CODE_SIZE;
+		let new_code = ValidationCode(vec![0; c as usize]);
+	}: _(RawOrigin::Root, new_code)
+
+	poke_unused_validation_code {
+		let code_hash = [0; 32].into();
+	}: _(RawOrigin::Root, code_hash)
 
 	impl_benchmark_test_suite!(
 		Pallet,

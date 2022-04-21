@@ -1,0 +1,24 @@
+[package]
+name = "axia-runtime-metrics"
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
+edition = "2018"
+
+[dependencies]
+sp-std = { package = "sp-std", git = "https://github.com/axia-tech/axlib", default-features = false, branch = "axlib" }
+sp-tracing = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+axia-scale-codec = { version = "2.3.1", default-features = false }
+primitives = { package = "axia-primitives", path = "../../primitives", default-features = false }
+
+bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
+
+[features]
+default = ["std"]
+std = [
+	"sp-std/std",
+	"sp-tracing/std",
+    "axia-scale-codec/std",
+    "primitives/std",
+    "bs58/std"
+]
+runtime-metrics = ["sp-tracing/with-tracing"]

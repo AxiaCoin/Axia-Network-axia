@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! One-way message lane types. Within single one-way lane we have three 'races' where we try to:
 //!
@@ -21,7 +21,8 @@
 
 use num_traits::{SaturatingAdd, Zero};
 use relay_utils::{BlockNumberBase, HeaderId};
-use std::fmt::Debug;
+use sp_arithmetic::traits::AtLeast32BitUnsigned;
+use std::{fmt::Debug, ops::Sub};
 
 /// One-way message lane.
 pub trait MessageLane: 'static + Clone + Send + Sync {
@@ -40,7 +41,16 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 	/// 1) pay transaction fees;
 	/// 2) pay message delivery and dispatch fee;
 	/// 3) pay relayer rewards.
-	type SourceChainBalance: Clone + Copy + Debug + PartialOrd + SaturatingAdd + Zero + Send + Sync;
+	type SourceChainBalance: AtLeast32BitUnsigned
+		+ Clone
+		+ Copy
+		+ Debug
+		+ PartialOrd
+		+ Sub<Output = Self::SourceChainBalance>
+		+ SaturatingAdd
+		+ Zero
+		+ Send
+		+ Sync;
 	/// Number of the source header.
 	type SourceHeaderNumber: BlockNumberBase;
 	/// Hash of the source header.
@@ -53,7 +63,9 @@ pub trait MessageLane: 'static + Clone + Send + Sync {
 }
 
 /// Source header id within given one-way message lane.
-pub type SourceHeaderIdOf<P> = HeaderId<<P as MessageLane>::SourceHeaderHash, <P as MessageLane>::SourceHeaderNumber>;
+pub type SourceHeaderIdOf<P> =
+	HeaderId<<P as MessageLane>::SourceHeaderHash, <P as MessageLane>::SourceHeaderNumber>;
 
 /// Target header id within given one-way message lane.
-pub type TargetHeaderIdOf<P> = HeaderId<<P as MessageLane>::TargetHeaderHash, <P as MessageLane>::TargetHeaderNumber>;
+pub type TargetHeaderIdOf<P> =
+	HeaderId<<P as MessageLane>::TargetHeaderHash, <P as MessageLane>::TargetHeaderNumber>;

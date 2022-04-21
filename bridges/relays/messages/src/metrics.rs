@@ -1,26 +1,30 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Metrics for message lane relay loop.
 
-use crate::message_lane::MessageLane;
-use crate::message_lane_loop::{SourceClientState, TargetClientState};
+use crate::{
+	message_lane::MessageLane,
+	message_lane_loop::{SourceClientState, TargetClientState},
+};
 
 use bp_messages::MessageNonce;
-use relay_utils::metrics::{metric_name, register, GaugeVec, Opts, PrometheusError, Registry, U64};
+use relay_utils::metrics::{
+	metric_name, register, GaugeVec, Metric, Opts, PrometheusError, Registry, U64,
+};
 
 /// Message lane relay metrics.
 ///
@@ -36,30 +40,22 @@ pub struct MessageLaneLoopMetrics {
 
 impl MessageLaneLoopMetrics {
 	/// Create and register messages loop metrics.
-	pub fn new(registry: &Registry, prefix: Option<&str>) -> Result<Self, PrometheusError> {
+	pub fn new(prefix: Option<&str>) -> Result<Self, PrometheusError> {
 		Ok(MessageLaneLoopMetrics {
-			best_block_numbers: register(
-				GaugeVec::new(
-					Opts::new(
-						metric_name(prefix, "best_block_numbers"),
-						"Best finalized block numbers",
-					),
-					&["type"],
-				)?,
-				registry,
+			best_block_numbers: GaugeVec::new(
+				Opts::new(
+					metric_name(prefix, "best_block_numbers"),
+					"Best finalized block numbers",
+				),
+				&["type"],
 			)?,
-			lane_state_nonces: register(
-				GaugeVec::new(
-					Opts::new(metric_name(prefix, "lane_state_nonces"), "Nonces of the lane state"),
-					&["type"],
-				)?,
-				registry,
+			lane_state_nonces: GaugeVec::new(
+				Opts::new(metric_name(prefix, "lane_state_nonces"), "Nonces of the lane state"),
+				&["type"],
 			)?,
 		})
 	}
-}
 
-impl MessageLaneLoopMetrics {
 	/// Update source client state metrics.
 	pub fn update_source_state<P: MessageLane>(&self, source_client_state: SourceClientState<P>) {
 		self.best_block_numbers
@@ -81,30 +77,50 @@ impl MessageLaneLoopMetrics {
 	}
 
 	/// Update latest generated nonce at source.
-	pub fn update_source_latest_generated_nonce<P: MessageLane>(&self, source_latest_generated_nonce: MessageNonce) {
+	pub fn update_source_latest_generated_nonce<P: MessageLane>(
+		&self,
+		source_latest_generated_nonce: MessageNonce,
+	) {
 		self.lane_state_nonces
 			.with_label_values(&["source_latest_generated"])
 			.set(source_latest_generated_nonce);
 	}
 
-	/// Update latest confirmed nonce at source.
-	pub fn update_source_latest_confirmed_nonce<P: MessageLane>(&self, source_latest_confirmed_nonce: MessageNonce) {
+	/// Update the latest confirmed nonce at source.
+	pub fn update_source_latest_confirmed_nonce<P: MessageLane>(
+		&self,
+		source_latest_confirmed_nonce: MessageNonce,
+	) {
 		self.lane_state_nonces
 			.with_label_values(&["source_latest_confirmed"])
 			.set(source_latest_confirmed_nonce);
 	}
 
-	/// Update latest received nonce at target.
-	pub fn update_target_latest_received_nonce<P: MessageLane>(&self, target_latest_generated_nonce: MessageNonce) {
+	/// Update the latest received nonce at target.
+	pub fn update_target_latest_received_nonce<P: MessageLane>(
+		&self,
+		target_latest_generated_nonce: MessageNonce,
+	) {
 		self.lane_state_nonces
 			.with_label_values(&["target_latest_received"])
 			.set(target_latest_generated_nonce);
 	}
 
-	/// Update latest confirmed nonce at target.
-	pub fn update_target_latest_confirmed_nonce<P: MessageLane>(&self, target_latest_confirmed_nonce: MessageNonce) {
+	/// Update the latest confirmed nonce at target.
+	pub fn update_target_latest_confirmed_nonce<P: MessageLane>(
+		&self,
+		target_latest_confirmed_nonce: MessageNonce,
+	) {
 		self.lane_state_nonces
 			.with_label_values(&["target_latest_confirmed"])
 			.set(target_latest_confirmed_nonce);
+	}
+}
+
+impl Metric for MessageLaneLoopMetrics {
+	fn register(&self, registry: &Registry) -> Result<(), PrometheusError> {
+		register(self.best_block_numbers.clone(), registry)?;
+		register(self.lane_state_nonces.clone(), registry)?;
+		Ok(())
 	}
 }

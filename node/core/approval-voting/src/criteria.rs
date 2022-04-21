@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Assignment criteria VRF generation and checking.
 
@@ -20,11 +20,12 @@ use axia_scale_codec::{Decode, Encode};
 use axia_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use axia_primitives::v1::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+use axia_primitives::{
+	v1::{AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, ValidatorIndex},
+	v2::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::Public;
+use sp_application_crypto::ByteArray;
 
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;
@@ -264,7 +265,7 @@ pub(crate) fn compute_assignments(
 		match key {
 			None => {
 				tracing::trace!(target: LOG_TARGET, "No assignment key");
-				return Default::default()
+				return HashMap::new()
 			},
 			Some(k) => k,
 		}
@@ -320,7 +321,7 @@ fn compute_relay_vrf_modulo_assignments(
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
 	for rvm_sample in 0..config.relay_vrf_modulo_samples {
-		let mut core = Default::default();
+		let mut core = CoreIndex::default();
 
 		let maybe_assignment = {
 			// Extra scope to ensure borrowing instead of moving core

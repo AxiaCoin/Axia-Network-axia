@@ -8,7 +8,7 @@ Storage layout required for implementation of DMP.
 
 ```rust
 /// The downward messages addressed for a certain para.
-DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
+DownwardMessageQueues: map AllyId => Vec<InboundDownwardMessage>;
 /// A mapping that stores the downward message queue MQC head for each para.
 ///
 /// Each link in this chain has a form:
@@ -16,7 +16,7 @@ DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
 /// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeads: map ParaId => Hash;
+DownwardMessageQueueHeads: map AllyId => Hash;
 ```
 
 ## Initialization
@@ -27,18 +27,18 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_processed_downward_messages(P: ParaId, processed_downward_messages: u32)`:
+* `check_processed_downward_messages(P: AllyId, processed_downward_messages: u32)`:
     1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
     1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 
 Candidate Enactment:
 
-* `prune_dmq(P: ParaId, processed_downward_messages: u32)`:
+* `prune_dmq(P: AllyId, processed_downward_messages: u32)`:
     1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
 
 Utility routines.
 
-`queue_downward_message(P: ParaId, M: DownwardMessage)`:
+`queue_downward_message(P: AllyId, M: DownwardMessage)`:
     1. Check if the size of `M` exceeds the `config.max_downward_message_size`. If so, return an error.
     1. Wrap `M` into `InboundDownwardMessage` using the current block number for `sent_at`.
     1. Obtain a new MQC link for the resulting `InboundDownwardMessage` and replace `DownwardMessageQueueHeads` for `P` with the resulting hash.

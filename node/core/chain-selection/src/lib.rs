@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Implements the Chain Selection Subsystem.
 
@@ -348,14 +348,12 @@ async fn run<Context, B>(
 	B: Backend,
 {
 	loop {
-		let res = run_iteration(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
+		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break
-				}
+				// All errors right now are considered fatal:
+				break
 			},
 			Ok(()) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
@@ -370,7 +368,7 @@ async fn run<Context, B>(
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
-async fn run_iteration<Context, B>(
+async fn run_until_error<Context, B>(
 	ctx: &mut Context,
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
@@ -440,21 +438,36 @@ async fn fetch_finalized(
 	ctx: &mut impl SubsystemContext,
 ) -> Result<Option<(Hash, BlockNumber)>, Error> {
 	let (number_tx, number_rx) = oneshot::channel();
-	let (hash_tx, hash_rx) = oneshot::channel();
 
 	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
-	let number = number_rx.await??;
+	let number = match number_rx.await? {
+		Ok(number) => number,
+		Err(err) => {
+			tracing::warn!(target: LOG_TARGET, ?err, "Fetching finalized number failed");
+			return Ok(None)
+		},
+	};
+
+	let (hash_tx, hash_rx) = oneshot::channel();
 
 	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
-	match hash_rx.await?? {
-		None => {
-			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
-
-			return Ok(None)
+	match hash_rx.await? {
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				number,
+				?err,
+				"Fetching finalized block number failed"
+			);
+			Ok(None)
 		},
-		Some(h) => Ok(Some((h, number))),
+		Ok(None) => {
+			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
+			Ok(None)
+		},
+		Ok(Some(h)) => Ok(Some((h, number))),
 	}
 }
 
@@ -462,10 +475,13 @@ async fn fetch_header(
 	ctx: &mut impl SubsystemContext,
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
-	let (h_tx, h_rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx)).await;
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
 
-	h_rx.await?.map_err(Into::into)
+	Ok(rx.await?.unwrap_or_else(|err| {
+		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		None
+	}))
 }
 
 async fn fetch_block_weight(
@@ -475,7 +491,12 @@ async fn fetch_block_weight(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
-	rx.await?.map_err(Into::into)
+	let res = rx.await?;
+
+	Ok(res.unwrap_or_else(|err| {
+		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		None
+	}))
 }
 
 // Handle a new active leaf.
@@ -590,7 +611,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 	logs
 }
 
-// Handle a finalized block event.
+/// Handle a finalized block event.
 fn handle_finalized_block(
 	backend: &mut impl Backend,
 	finalized_hash: Hash,

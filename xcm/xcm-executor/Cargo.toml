@@ -1,27 +1,27 @@
 [package]
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
-version = "0.9.12"
+version = "0.9.17"
 
 [dependencies]
-impl-trait-for-tuples = "0.2.0"
+impl-trait-for-tuples = "0.2.2"
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-arithmetic = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+sp-std = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-arithmetic = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+frame-support = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 log = { version = "0.4.14", default-features = false }
-frame-benchmarking = { git = "https://github.com/axia-tech/axia-core", default-features = false, optional = true , branch = "dev" }
+frame-benchmarking = { git = "https://github.com/axia-tech/axlib", default-features = false, optional = true , branch = "axlib" }
 
 [features]
 default = ["std"]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 ]
 std = [
 	"axia-scale-codec/std",

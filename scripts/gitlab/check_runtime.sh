@@ -16,7 +16,7 @@ set -e # fail on any error
 #shellcheck source=../common/lib.sh
 . "$(dirname "${0}")/../common/lib.sh"
 
-AXLIB_REPO="https://github.com/axia-tech/axia-core"
+AXLIB_REPO="https://github.com/purestake/axlib"
 AXLIB_REPO_CARGO="git\+${AXLIB_REPO}"
 AXLIB_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 
@@ -35,7 +35,7 @@ git fetch --depth="${GIT_DEPTH:-100}" origin master
 
 
 runtimes=(
-  "axiatest"
+  "axctest"
   "axia"
   "alphanet"
 )

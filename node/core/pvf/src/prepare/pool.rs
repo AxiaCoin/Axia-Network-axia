@@ -1,21 +1,22 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::worker::{self, Outcome};
 use crate::{
+	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
@@ -52,10 +53,6 @@ pub enum ToPool {
 	/// this message is processed.
 	Kill(Worker),
 
-	/// If the given worker was started with the background priority, then it will be raised up to
-	/// normal priority. Otherwise, it's no-op.
-	BumpPriority(Worker),
-
 	/// Request the given worker to start working on the given code.
 	///
 	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
@@ -64,12 +61,7 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork {
-		worker: Worker,
-		code: Arc<Vec<u8>>,
-		artifact_path: PathBuf,
-		background_priority: bool,
-	},
+	StartWork { worker: Worker, code: Arc<Vec<u8>>, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -78,9 +70,16 @@ pub enum FromPool {
 	/// The given worker was just spawned and is ready to be used.
 	Spawned(Worker),
 
-	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The `bool` says whether the worker ripped.
-	Concluded(Worker, bool),
+	/// The given worker either succeeded or failed the given job.
+	Concluded {
+		/// A key for retrieving the worker data from the pool.
+		worker: Worker,
+		/// Indicates whether the worker process was killed.
+		rip: bool,
+		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
+		/// Otherwise, an [error](PrepareError) is supplied.
+		result: PrepareResult,
+	},
 
 	/// The given worker ceased to exist.
 	Rip(Worker),
@@ -206,7 +205,7 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
+		ToPool::StartWork { worker, code, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
@@ -217,7 +216,6 @@ fn handle_to_pool(
 							code,
 							cache_path.to_owned(),
 							artifact_path,
-							background_priority,
 							preparation_timer,
 						)
 						.boxed(),
@@ -240,10 +238,6 @@ fn handle_to_pool(
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = attempt_retire(metrics, spawned, worker);
 		},
-		ToPool::BumpPriority(worker) =>
-			if let Some(data) = spawned.get(worker) {
-				worker::bump_priority(&data.handle);
-			},
 	}
 }
 
@@ -269,11 +263,9 @@ async fn start_work_task<Timer>(
 	code: Arc<Vec<u8>>,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
-	background_priority: bool,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
+	let outcome = worker::start_work(idle, code, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -295,7 +287,7 @@ fn handle_mux(
 		},
 		PoolEvent::StartWork(worker, outcome) => {
 			match outcome {
-				Outcome::Concluded(idle) => {
+				Outcome::Concluded { worker: idle, result } => {
 					let data = match spawned.get_mut(worker) {
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
@@ -310,7 +302,7 @@ fn handle_mux(
 					let old = data.idle.replace(idle);
 					assert_matches!(old, None, "attempt to overwrite an idle worker");
 
-					reply(from_pool, FromPool::Concluded(worker, false))?;
+					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
 
 					Ok(())
 				},
@@ -321,9 +313,30 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::DidntMakeIt => {
+				Outcome::DidNotMakeIt => {
 					if attempt_retire(metrics, spawned, worker) {
-						reply(from_pool, FromPool::Concluded(worker, true))?;
+						reply(
+							from_pool,
+							FromPool::Concluded {
+								worker,
+								rip: true,
+								result: Err(PrepareError::DidNotMakeIt),
+							},
+						)?;
+					}
+
+					Ok(())
+				},
+				Outcome::TimedOut => {
+					if attempt_retire(metrics, spawned, worker) {
+						reply(
+							from_pool,
+							FromPool::Concluded {
+								worker,
+								rip: true,
+								result: Err(PrepareError::TimedOut),
+							},
+						)?;
 					}
 
 					Ok(())

@@ -16,7 +16,7 @@ apt update && apt dist-upgrade
 apt install -y git clang curl libssl-dev llvm libudev-dev screen
 
 # Now we clone the repository
-git clone https://github.com/axia/axia-bridges-common.git
+git clone https://github.com/axiatech/axia-bridges-common.git
 cd axia-bridges-common
 
 # Install rustup & toolchain

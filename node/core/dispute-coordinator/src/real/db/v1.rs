@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! `V1` database for the dispute coordinator.
 
@@ -28,11 +28,13 @@ use kvdb::{DBTransaction, KeyValueDB};
 use axia_scale_codec::{Decode, Encode};
 
 use crate::{
-	real::{
-		backend::{Backend, BackendWriteOp, OverlayedBackend},
-		DISPUTE_WINDOW,
-	},
-	DisputeStatus,
+	error::{Fatal, FatalResult},
+	status::DisputeStatus,
+};
+
+use crate::real::{
+	backend::{Backend, BackendWriteOp, OverlayedBackend},
+	DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -72,7 +74,7 @@ impl Backend for DbBackend {
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
 		I: IntoIterator<Item = BackendWriteOp>,
 	{
@@ -98,7 +100,7 @@ impl Backend for DbBackend {
 			}
 		}
 
-		self.inner.write(tx).map_err(Into::into)
+		self.inner.write(tx).map_err(Fatal::DbWriteFailed)
 	}
 }
 
@@ -163,6 +165,15 @@ pub enum Error {
 	Codec(#[from] axia_scale_codec::Error),
 }
 
+impl From<Error> for crate::error::Error {
+	fn from(err: Error) -> Self {
+		match err {
+			Error::Io(io) => Self::NonFatal(crate::error::NonFatal::Io(io)),
+			Error::Codec(e) => Self::NonFatal(crate::error::NonFatal::Codec(e)),
+		}
+	}
+}
+
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -214,7 +225,7 @@ pub(crate) fn note_current_session(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	current_session: SessionIndex,
 ) -> SubsystemResult<()> {
-	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW);
+	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW.get());
 	match overlay_db.load_earliest_session()? {
 		None => {
 			// First launch - write new-earliest.
@@ -253,7 +264,8 @@ pub(crate) fn note_current_session(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use axia_primitives::v1::{Hash, Id as ParaId};
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use axia_primitives::v1::{Hash, Id as AllyId};
 
 	fn make_db() -> DbBackend {
 		let store = Arc::new(kvdb_memorydb::create(1));
@@ -286,7 +298,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: Default::default(),
+				candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -296,8 +308,8 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::default();
-					receipt.descriptor.para_id = 5.into();
+					let mut receipt = dummy_candidate_receipt(dummy_hash());
+					receipt.descriptor.ally_id = 5.into();
 
 					receipt
 				},
@@ -323,8 +335,8 @@ mod tests {
 				.unwrap()
 				.candidate_receipt
 				.descriptor
-				.para_id,
-			ParaId::from(5),
+				.ally_id,
+			AllyId::from(5),
 		);
 
 		let write_ops = overlay_db.into_write_ops();
@@ -347,8 +359,8 @@ mod tests {
 				.unwrap()
 				.candidate_receipt
 				.descriptor
-				.para_id,
-			ParaId::from(5),
+				.ally_id,
+			AllyId::from(5),
 		);
 	}
 
@@ -363,7 +375,7 @@ mod tests {
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
-				candidate_receipt: Default::default(),
+				candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 				valid: Vec::new(),
 				invalid: Vec::new(),
 			},
@@ -379,8 +391,8 @@ mod tests {
 				.unwrap()
 				.candidate_receipt
 				.descriptor
-				.para_id,
-			ParaId::from(0),
+				.ally_id,
+			AllyId::from(1),
 		);
 
 		let mut overlay_db = OverlayedBackend::new(&backend);
@@ -389,8 +401,8 @@ mod tests {
 			CandidateHash(Hash::repeat_byte(1)),
 			CandidateVotes {
 				candidate_receipt: {
-					let mut receipt = CandidateReceipt::default();
-					receipt.descriptor.para_id = 5.into();
+					let mut receipt = dummy_candidate_receipt(dummy_hash());
+					receipt.descriptor.ally_id = 5.into();
 
 					receipt
 				},
@@ -421,14 +433,14 @@ mod tests {
 
 		let prev_earliest_session = 0;
 		let new_earliest_session = 5;
-		let current_session = 5 + DISPUTE_WINDOW;
+		let current_session = 5 + DISPUTE_WINDOW.get();
 
 		let very_old = 3;
 		let slightly_old = 4;
 		let very_recent = current_session - 1;
 
 		let blank_candidate_votes = || CandidateVotes {
-			candidate_receipt: Default::default(),
+			candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 			valid: Vec::new(),
 			invalid: Vec::new(),
 		};

@@ -1,6 +1,6 @@
-# BetaNet: v1
+# Betanet: v1
 
-BetaNet is a testnet runtime with no stability guarantees.
+Betanet is a testnet runtime with no stability guarantees.
 
 ## How to run
 

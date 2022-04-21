@@ -1,22 +1,22 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Unit tests for Gossip Support Subsystem.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -64,8 +64,8 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMes
 
 #[derive(Debug, Clone)]
 struct MockAuthorityDiscovery {
-	addrs: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
-	authorities: HashMap<PeerId, AuthorityDiscoveryId>,
+	addrs: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
+	authorities: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 }
 
 impl MockAuthorityDiscovery {
@@ -77,10 +77,13 @@ impl MockAuthorityDiscovery {
 			.into_iter()
 			.map(|(p, a)| {
 				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
-				(a, vec![multiaddr])
+				(a, HashSet::from([multiaddr]))
 			})
 			.collect();
-		Self { addrs, authorities }
+		Self {
+			addrs,
+			authorities: authorities.into_iter().map(|(p, a)| (p, HashSet::from([a]))).collect(),
+		}
 	}
 }
 
@@ -89,18 +92,18 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: axia_primitives::v1::AuthorityDiscoveryId,
-	) -> Option<Vec<sc_network::Multiaddr>> {
+	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: axia_node_network_protocol::PeerId,
-	) -> Option<axia_primitives::v1::AuthorityDiscoveryId> {
+	) -> Option<HashSet<axia_primitives::v1::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }
 
-async fn get_other_authorities_addrs() -> Vec<Vec<Multiaddr>> {
+async fn get_other_authorities_addrs() -> Vec<HashSet<Multiaddr>> {
 	let mut addrs = Vec::with_capacity(OTHER_AUTHORITIES.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
 	for authority in OTHER_AUTHORITIES.iter().cloned() {
@@ -111,7 +114,7 @@ async fn get_other_authorities_addrs() -> Vec<Vec<Multiaddr>> {
 	addrs
 }
 
-async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Vec<Multiaddr>> {
+async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>> {
 	let mut addrs = HashMap::with_capacity(OTHER_AUTHORITIES.len());
 	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
 	for authority in OTHER_AUTHORITIES.iter().cloned() {
@@ -123,7 +126,11 @@ async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Vec<
 }
 
 fn make_subsystem() -> GossipSupport<MockAuthorityDiscovery> {
-	GossipSupport::new(make_ferdie_keystore(), MOCK_AUTHORITY_DISCOVERY.clone())
+	GossipSupport::new(
+		make_ferdie_keystore(),
+		MOCK_AUTHORITY_DISCOVERY.clone(),
+		Metrics::new_dummy(),
+	)
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
@@ -227,6 +234,7 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(1)).unwrap();
 			}
 		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -250,6 +258,17 @@ fn issues_a_connection_request_on_new_session() {
 		);
 
 		test_neighbors(overseer).await;
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(1, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(None)).unwrap();
+			}
+		);
 
 		virtual_overseer
 	});
@@ -293,6 +312,7 @@ fn issues_a_connection_request_on_new_session() {
 				tx.send(Ok(2)).unwrap();
 			}
 		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -317,6 +337,17 @@ fn issues_a_connection_request_on_new_session() {
 
 		test_neighbors(overseer).await;
 
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(2, sender),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				sender.send(Ok(None)).unwrap();
+			}
+		);
+
 		virtual_overseer
 	});
 	assert_eq!(state.last_session_index, Some(2));
@@ -332,11 +363,11 @@ fn test_log_output() {
 		let mut m = HashMap::new();
 		let peer_id = PeerId::random();
 		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
-		let addrs = vec![addr.clone(), addr];
+		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(alice, addrs);
 		let peer_id = PeerId::random();
 		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
-		let addrs = vec![addr.clone(), addr];
+		let addrs = HashSet::from([addr.clone(), addr]);
 		m.insert(bob, addrs);
 		m
 	};
@@ -375,6 +406,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					tx.send(Ok(1)).unwrap();
 				}
 			);
+
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -389,21 +421,30 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
-					mut validator_addrs,
+					validator_addrs,
 					peer_set,
 				}) => {
 					let mut expected = get_other_authorities_addrs_map().await;
 					expected.remove(&alice);
 					expected.remove(&bob);
-					let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
-					validator_addrs.sort();
-					expected.sort();
-					assert_eq!(validator_addrs, expected);
+					let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
+					assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
 					assert_eq!(peer_set, PeerSet::Validation);
 				}
 			);
 
 			test_neighbors(overseer).await;
+
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionInfo(1, sender),
+				)) => {
+					assert_eq!(relay_parent, hash);
+					sender.send(Ok(None)).unwrap();
+				}
+			);
 
 			virtual_overseer
 		})
@@ -443,15 +484,13 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
-				mut validator_addrs,
+				validator_addrs,
 				peer_set,
 			}) => {
 				let mut expected = get_other_authorities_addrs_map().await;
 				expected.remove(&bob);
-				let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
-				expected.sort();
-				validator_addrs.sort();
-				assert_eq!(validator_addrs, expected);
+				let expected: HashSet<Multiaddr> = expected.into_iter().map(|(_,v)| v.into_iter()).flatten().collect();
+				assert_eq!(validator_addrs.into_iter().map(|v| v.into_iter()).flatten().collect::<HashSet<_>>(), expected);
 				assert_eq!(peer_set, PeerSet::Validation);
 			}
 		);

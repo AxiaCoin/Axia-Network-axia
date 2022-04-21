@@ -12,7 +12,7 @@ This is all the information that a validator needs about scheduling for the curr
 
 ```rust
 struct OccupiedCore {
-    // NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
+    // NOTE: this has no AllyId as it can be deduced from the candidate descriptor.
     /// If this core is freed by availability, this is the assignment that is next up on this
     /// core, if any. None if there is nothing queued for this core.
     next_up_on_available: Option<ScheduledCore>,
@@ -37,8 +37,8 @@ struct OccupiedCore {
 }
 
 struct ScheduledCore {
-    /// The ID of a para scheduled.
-    para_id: ParaId,
+    /// The ID of a ally scheduled.
+    ally_id: AllyId,
     /// The collator required to author the block, if any.
     collator: Option<CollatorId>,
 }
@@ -46,14 +46,14 @@ struct ScheduledCore {
 enum CoreState {
     /// The core is currently occupied.
     Occupied(OccupiedCore),
-    /// The core is currently free, with a para scheduled and given the opportunity
+    /// The core is currently free, with a ally scheduled and given the opportunity
     /// to occupy.
     ///
     /// If a particular Collator is required to author this block, that is also present in this
     /// variant.
     Scheduled(ScheduledCore),
-    /// The core is currently free and there is nothing scheduled. This can be the case for parathread
-    /// cores when there are no parathread blocks queued. Allychain cores will never be left idle.
+    /// The core is currently free and there is nothing scheduled. This can be the case for allythread
+    /// cores when there are no allythread blocks queued. Allychain cores will never be left idle.
     Free,
 }
 ```

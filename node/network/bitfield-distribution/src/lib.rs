@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The bitfield distribution
 //!
@@ -756,35 +756,35 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			gossipped_own_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_gossipped_own_availabilty_bitfields_total",
+					"axia_allychain_gossipped_own_availabilty_bitfields_total",
 					"Number of own availability bitfields sent to other peers.",
 				)?,
 				registry,
 			)?,
 			received_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_received_availabilty_bitfields_total",
+					"axia_allychain_received_availabilty_bitfields_total",
 					"Number of valid availability bitfields received from other peers.",
 				)?,
 				registry,
 			)?,
 			active_leaves_update: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_bitfield_distribution_active_leaves_update",
+					"axia_allychain_bitfield_distribution_active_leaves_update",
 					"Time spent within `bitfield_distribution::active_leaves_update`",
 				))?,
 				registry,
 			)?,
 			handle_bitfield_distribution: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_bitfield_distribution_handle_bitfield_distribution",
+					"axia_allychain_bitfield_distribution_handle_bitfield_distribution",
 					"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
 				))?,
 				registry,
 			)?,
 			handle_network_msg: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_bitfield_distribution_handle_network_msg",
+					"axia_allychain_bitfield_distribution_handle_network_msg",
 					"Time spent within `bitfield_distribution::handle_network_msg`",
 				))?,
 				registry,

@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This subsystem is responsible for keeping track of session changes
 //! and issuing a connection request to the relevant validators
@@ -25,7 +25,7 @@
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fmt,
 	time::{Duration, Instant},
 };
@@ -36,7 +36,7 @@ use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 use sc_network::Multiaddr;
-use sp_application_crypto::{AppKey, Public};
+use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use axia_node_network_protocol::{
@@ -49,13 +49,17 @@ use axia_node_subsystem::{
 		RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	SubsystemError, SubsystemSender,
 };
 use axia_node_subsystem_util as util;
 use axia_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
 
 #[cfg(test)]
 mod tests;
+
+mod metrics;
+
+use metrics::Metrics;
 
 const LOG_TARGET: &str = "allychain::gossip-support";
 // How much time should we wait to reissue a connection request
@@ -65,10 +69,10 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// Duration after which we consider low connectivity a problem.
 ///
 /// Especially at startup low connectivity is expected (authority discovery cache needs to be
-/// populated). Authority discovery on AXIATEST takes around 8 minutes, so warning after 10 minutes
+/// populated). Authority discovery on AxiaTest takes around 8 minutes, so warning after 10 minutes
 /// should be fine:
 ///
-/// https://github.com/axia-tech/axia-core/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
+/// https://github.com/axiatech/axlib/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
 /// If connectivity is lower than this in percent, issue warning in logs.
@@ -94,16 +98,19 @@ pub struct GossipSupport<AD> {
 	/// Successfully resolved connections
 	///
 	/// waiting for actual connection.
-	resolved_authorities: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
+	resolved_authorities: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
 
 	/// Actually connected authorities.
 	connected_authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	/// By `PeerId`.
 	///
 	/// Needed for efficient handling of disconnect events.
-	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	connected_authorities_by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	/// Authority discovery service.
 	authority_discovery: AD,
+
+	/// Subsystem metrics.
+	metrics: Metrics,
 }
 
 impl<AD> GossipSupport<AD>
@@ -111,7 +118,11 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
+		// Initialize metrics to `0`.
+		metrics.on_is_not_authority();
+		metrics.on_is_not_allychain_validator();
+
 		Self {
 			keystore,
 			last_session_index: None,
@@ -121,6 +132,7 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
+			metrics,
 		}
 	}
 
@@ -223,10 +235,60 @@ where
 
 				if is_new_session {
 					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
+					self.update_authority_status_metrics(leaf, ctx.sender()).await?;
 				}
 			}
 		}
+		Ok(())
+	}
 
+	async fn update_authority_status_metrics(
+		&mut self,
+		leaf: Hash,
+		sender: &mut impl SubsystemSender,
+	) -> Result<(), util::Error> {
+		if let Some(session_info) = util::request_session_info(
+			leaf,
+			self.last_session_index
+				.expect("Last session index is always set on every session index change"),
+			sender,
+		)
+		.await
+		.await??
+		{
+			let maybe_index = match ensure_i_am_an_authority(
+				&self.keystore,
+				&session_info.discovery_keys,
+			)
+			.await
+			{
+				Ok(index) => {
+					self.metrics.on_is_authority();
+					Some(index)
+				},
+				Err(util::Error::NotAValidator) => {
+					self.metrics.on_is_not_authority();
+					self.metrics.on_is_not_allychain_validator();
+					None
+				},
+				// Don't update on runtime errors.
+				Err(_) => None,
+			};
+
+			if let Some(validator_index) = maybe_index {
+				// The subset of authorities participating in allychain consensus.
+				let allychain_validators_this_session = session_info.validators;
+
+				// First `maxValidators` entries are the allychain validators. We'll check
+				// if our index is in this set to avoid searching for the keys.
+				// https://github.com/axiatech/axia/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/allychains/src/configuration.rs#L148
+				if validator_index < allychain_validators_this_session.len() {
+					self.metrics.on_is_allychain_validator();
+				} else {
+					self.metrics.on_is_not_allychain_validator();
+				}
+			}
+		}
 		Ok(())
 	}
 
@@ -299,14 +361,19 @@ where
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
 		match ev {
 			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
-				if let Some(authority) = o_authority {
-					self.connected_authorities.insert(authority.clone(), peer_id);
-					self.connected_authorities_by_peer_id.insert(peer_id, authority);
+				if let Some(authority_ids) = o_authority {
+					authority_ids.iter().for_each(|a| {
+						self.connected_authorities.insert(a.clone(), peer_id);
+					});
+					self.connected_authorities_by_peer_id.insert(peer_id, authority_ids);
 				}
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
-				if let Some(authority) = self.connected_authorities_by_peer_id.remove(&peer_id) {
-					self.connected_authorities.remove(&authority);
+				if let Some(authority_ids) = self.connected_authorities_by_peer_id.remove(&peer_id)
+				{
+					authority_ids.into_iter().for_each(|a| {
+						self.connected_authorities.remove(&a);
+					});
 				}
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
@@ -330,7 +397,7 @@ where
 			.filter(|(a, _)| !self.connected_authorities.contains_key(a));
 		// TODO: Make that warning once connectivity issues are fixed (no point in warning, if
 		// we already know it is broken.
-		// https://github.com/axia/axia/issues/3921
+		// https://github.com/axiatech/axia/issues/3921
 		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -474,7 +541,7 @@ struct PrettyAuthorities<I>(I);
 
 impl<'a, I> fmt::Display for PrettyAuthorities<I>
 where
-	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone,
+	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a HashSet<Multiaddr>)> + Clone,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut authorities = self.0.clone().peekable();

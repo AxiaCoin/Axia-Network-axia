@@ -1,20 +1,20 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA-specific GRANDPA integration utilities.
+//! Axia-specific GRANDPA integration utilities.
 
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
-use axia_primitives::v1::Hash;
+use axia_primitives::v1::{Block, Hash};
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
@@ -115,11 +115,7 @@ where
 /// w3f validators and randomly selected validators from the latest session (at
 /// #1500988).
 #[cfg(feature = "full-node")]
-pub(crate) fn axiatest_hard_forks() -> Vec<(
-	grandpa_primitives::SetId,
-	(Hash, axia_primitives::v1::BlockNumber),
-	grandpa_primitives::AuthorityList,
-)> {
+pub(crate) fn axctest_hard_forks() -> Vec<grandpa::AuthoritySetHardFork<Block>> {
 	use sp_core::crypto::Ss58Codec;
 	use std::str::FromStr;
 
@@ -209,7 +205,12 @@ pub(crate) fn axiatest_hard_forks() -> Vec<(
 			let hash = Hash::from_str(hash)
 				.expect("hard fork hashes are static and they should be carefully defined; qed.");
 
-			(set_id, (hash, number), authorities.clone())
+			grandpa::AuthoritySetHardFork {
+				set_id,
+				block: (hash, number),
+				authorities: authorities.clone(),
+				last_finalized: None,
+			}
 		})
 		.collect()
 }
@@ -219,7 +220,7 @@ mod tests {
 	use consensus_common::BlockOrigin;
 	use grandpa::VotingRule;
 	use axia_test_client::{
-		ClientBlockImportExt, DefaultTestClientBuilderExt, InitAXIABlockBuilder,
+		ClientBlockImportExt, DefaultTestClientBuilderExt, InitAxiaBlockBuilder,
 		TestClientBuilder, TestClientBuilderExt,
 	};
 	use sp_blockchain::HeaderBackend;

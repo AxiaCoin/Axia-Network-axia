@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A [`SelectChain`] implementation designed for relay chains.
 //!
@@ -41,7 +41,7 @@ use futures::channel::oneshot;
 use axia_node_subsystem_util::metrics::{self, prometheus};
 use axia_overseer::{AllMessages, Handle};
 use axia_primitives::v1::{
-	Block as AXIABlock, BlockNumber, Hash, Header as AXIAHeader,
+	Block as AxiaBlock, BlockNumber, Hash, Header as AxiaHeader,
 };
 use axia_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
@@ -53,7 +53,9 @@ use std::sync::Arc;
 /// or disputes.
 ///
 /// This is a safety net that should be removed at some point in the future.
-const MAX_FINALITY_LAG: axia_primitives::v1::BlockNumber = 50;
+// Until it's not, make sure to also update `MAX_HEADS_LOOK_BACK` in `approval-voting`
+// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator` when changing its value.
+const MAX_FINALITY_LAG: axia_primitives::v1::BlockNumber = 500;
 
 const LOG_TARGET: &str = "allychain::chain-selection";
 
@@ -73,7 +75,7 @@ impl metrics::Metrics for Metrics {
 			approval_checking_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"allychain_approval_checking_finality_lag",
+						"axia_allychain_approval_checking_finality_lag",
 						"How far behind the head of the chain the Approval Checking protocol wants to vote",
 					)
 				)?,
@@ -82,7 +84,7 @@ impl metrics::Metrics for Metrics {
 			disputes_finality_lag: prometheus::register(
 				prometheus::Gauge::with_opts(
 					prometheus::Opts::new(
-						"allychain_disputes_finality_lag",
+						"axia_allychain_disputes_finality_lag",
 						"How far behind the head of the chain the Disputes protocol wants to vote",
 					)
 				)?,
@@ -108,70 +110,110 @@ impl Metrics {
 	}
 }
 
+/// Determines whether the chain is a relay chain
+/// and hence has to take approval votes and disputes
+/// into account.
+enum IsDisputesAwareWithOverseer<B: sc_client_api::Backend<AxiaBlock>> {
+	Yes(SelectRelayChainInner<B, Handle>),
+	No,
+}
+
+impl<B> Clone for IsDisputesAwareWithOverseer<B>
+where
+	B: sc_client_api::Backend<AxiaBlock>,
+	SelectRelayChainInner<B, Handle>: Clone,
+{
+	fn clone(&self) -> Self {
+		match self {
+			Self::Yes(ref inner) => Self::Yes(inner.clone()),
+			Self::No => Self::No,
+		}
+	}
+}
+
 /// A chain-selection implementation which provides safety for relay chains.
-pub struct SelectRelayChain<B: sc_client_api::Backend<AXIABlock>> {
-	is_relay_chain: bool,
-	longest_chain: sc_consensus::LongestChain<B, AXIABlock>,
-	selection: SelectRelayChainInner<B, Handle>,
+pub struct SelectRelayChain<B: sc_client_api::Backend<AxiaBlock>> {
+	longest_chain: sc_consensus::LongestChain<B, AxiaBlock>,
+	selection: IsDisputesAwareWithOverseer<B>,
 }
 
 impl<B> Clone for SelectRelayChain<B>
 where
-	B: sc_client_api::Backend<AXIABlock>,
+	B: sc_client_api::Backend<AxiaBlock>,
 	SelectRelayChainInner<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self {
-			longest_chain: self.longest_chain.clone(),
-			is_relay_chain: self.is_relay_chain,
-			selection: self.selection.clone(),
-		}
+		Self { longest_chain: self.longest_chain.clone(), selection: self.selection.clone() }
 	}
 }
 
 impl<B> SelectRelayChain<B>
 where
-	B: sc_client_api::Backend<AXIABlock> + 'static,
+	B: sc_client_api::Backend<AxiaBlock> + 'static,
 {
+	/// Use the plain longest chain algorithm exclusively.
+	pub fn new_longest_chain(backend: Arc<B>) -> Self {
+		tracing::debug!(target: LOG_TARGET, "Using {} chain selection algorithm", "longest");
+
+		Self {
+			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
+			selection: IsDisputesAwareWithOverseer::No,
+		}
+	}
+
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
+	pub fn new_disputes_aware(
+		backend: Arc<B>,
+		overseer: Handle,
+		metrics: Metrics,
+		disputes_enabled: bool,
+	) -> Self {
 		tracing::debug!(
 			target: LOG_TARGET,
-			"Using {} as chain selection algorithm",
-			if is_relay_chain { "dispute aware relay" } else { "longest" }
+			"Using {} chain selection algorithm",
+			if disputes_enabled {
+				"dispute aware relay"
+			} else {
+				// no disputes are queried, that logic is disabled
+				// in `fn finality_target_with_longest_chain`.
+				"short-circuited relay"
+			}
 		);
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
-			selection: SelectRelayChainInner::new(backend, overseer, metrics),
-			is_relay_chain,
+			selection: IsDisputesAwareWithOverseer::Yes(SelectRelayChainInner::new(
+				backend,
+				overseer,
+				metrics,
+				disputes_enabled,
+			)),
 		}
 	}
 
 	/// Allow access to the inner chain, for usage during the node setup.
-	pub fn as_longest_chain(&self) -> &sc_consensus::LongestChain<B, AXIABlock> {
+	pub fn as_longest_chain(&self) -> &sc_consensus::LongestChain<B, AxiaBlock> {
 		&self.longest_chain
 	}
 }
 
 #[async_trait::async_trait]
-impl<B> SelectChain<AXIABlock> for SelectRelayChain<B>
+impl<B> SelectChain<AxiaBlock> for SelectRelayChain<B>
 where
-	B: sc_client_api::Backend<AXIABlock> + 'static,
+	B: sc_client_api::Backend<AxiaBlock> + 'static,
 {
 	async fn leaves(&self) -> Result<Vec<Hash>, ConsensusError> {
-		if !self.is_relay_chain {
-			return self.longest_chain.leaves().await
+		match self.selection {
+			IsDisputesAwareWithOverseer::Yes(ref selection) => selection.leaves().await,
+			IsDisputesAwareWithOverseer::No => self.longest_chain.leaves().await,
 		}
-
-		self.selection.leaves().await
 	}
 
-	async fn best_chain(&self) -> Result<AXIAHeader, ConsensusError> {
-		if !self.is_relay_chain {
-			return self.longest_chain.best_chain().await
+	async fn best_chain(&self) -> Result<AxiaHeader, ConsensusError> {
+		match self.selection {
+			IsDisputesAwareWithOverseer::Yes(ref selection) => selection.best_chain().await,
+			IsDisputesAwareWithOverseer::No => self.longest_chain.best_chain().await,
 		}
-		self.selection.best_chain().await
 	}
 
 	async fn finality_target(
@@ -182,12 +224,17 @@ where
 		let longest_chain_best =
 			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
-		if !self.is_relay_chain {
-			return Ok(longest_chain_best)
+		if let IsDisputesAwareWithOverseer::Yes(ref selection) = self.selection {
+			selection
+				.finality_target_with_longest_chain(
+					target_hash,
+					longest_chain_best,
+					maybe_max_number,
+				)
+				.await
+		} else {
+			Ok(longest_chain_best)
 		}
-		self.selection
-			.finality_target_with_longest_chain(target_hash, longest_chain_best, maybe_max_number)
-			.await
 	}
 }
 
@@ -196,21 +243,22 @@ where
 pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
+	disputes_enabled: bool,
 	metrics: Metrics,
 }
 
 impl<B, OH> SelectRelayChainInner<B, OH>
 where
-	B: HeaderProviderProvider<AXIABlock>,
+	B: HeaderProviderProvider<AxiaBlock>,
 	OH: OverseerHandleT,
 {
 	/// Create a new [`SelectRelayChainInner`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
-		SelectRelayChainInner { backend, overseer, metrics }
+	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics, disputes_enabled: bool) -> Self {
+		SelectRelayChainInner { backend, overseer, metrics, disputes_enabled }
 	}
 
-	fn block_header(&self, hash: Hash) -> Result<AXIAHeader, ConsensusError> {
+	fn block_header(&self, hash: Hash) -> Result<AxiaHeader, ConsensusError> {
 		match HeaderProvider::header(self.backend.header_provider(), hash) {
 			Ok(Some(header)) => Ok(header),
 			Ok(None) =>
@@ -237,7 +285,7 @@ where
 
 impl<B, OH> Clone for SelectRelayChainInner<B, OH>
 where
-	B: HeaderProviderProvider<AXIABlock> + Send + Sync,
+	B: HeaderProviderProvider<AxiaBlock> + Send + Sync,
 	OH: OverseerHandleT,
 {
 	fn clone(&self) -> Self {
@@ -245,15 +293,24 @@ where
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
 			metrics: self.metrics.clone(),
+			disputes_enabled: self.disputes_enabled,
 		}
 	}
 }
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
-	// A request to the subsystem was canceled.
-	#[error("Overseer is disconnected from Chain Selection")]
-	OverseerDisconnected(oneshot::Canceled),
+	// Oneshot for requesting leaves from chain selection got canceled - check errors in that
+	// subsystem.
+	#[error("Request for leaves from chain selection got canceled")]
+	LeavesCanceled(oneshot::Canceled),
+	#[error("Request for leaves from chain selection got canceled")]
+	BestLeafContainingCanceled(oneshot::Canceled),
+	// Requesting recent disputes oneshot got canceled.
+	#[error("Request for determining the undisputed chain from DisputeCoordinator got canceled")]
+	DetermineUndisputedChainCanceled(oneshot::Canceled),
+	#[error("Request approved ancestor from approval voting got canceled")]
+	ApprovedAncestorCanceled(oneshot::Canceled),
 	/// Chain selection returned empty leaves.
 	#[error("ChainSelection returned no leaves")]
 	EmptyLeaves,
@@ -276,7 +333,7 @@ impl OverseerHandleT for Handle {
 
 impl<B, OH> SelectRelayChainInner<B, OH>
 where
-	B: HeaderProviderProvider<AXIABlock>,
+	B: HeaderProviderProvider<AxiaBlock>,
 	OH: OverseerHandleT,
 {
 	/// Get all leaves of the chain, i.e. block hashes that are suitable to
@@ -291,7 +348,7 @@ where
 
 		let leaves = rx
 			.await
-			.map_err(Error::OverseerDisconnected)
+			.map_err(Error::LeavesCanceled)
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 		tracing::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
@@ -300,7 +357,7 @@ where
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
-	async fn best_chain(&self) -> Result<AXIAHeader, ConsensusError> {
+	async fn best_chain(&self) -> Result<AxiaHeader, ConsensusError> {
 		// The Chain Selection subsystem is supposed to treat the finalized
 		// block as the best leaf in the case that there are no viable
 		// leaves, so this should not happen in practice.
@@ -334,7 +391,7 @@ where
 		let mut overseer = self.overseer.clone();
 		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
-		let subchain_head = if cfg!(feature = "disputes") {
+		let subchain_head = if self.disputes_enabled {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -345,7 +402,7 @@ where
 
 			let best = rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::BestLeafContainingCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 			tracing::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
@@ -420,7 +477,7 @@ where
 
 			match rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::ApprovedAncestorCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
@@ -439,7 +496,7 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		let (lag, subchain_head) = if cfg!(feature = "disputes") {
+		let (lag, subchain_head) = if self.disputes_enabled {
 			// Prevent sending flawed data to the dispute-coordinator.
 			if Some(subchain_block_descriptions.len() as _) !=
 				subchain_number.checked_sub(target_number)
@@ -465,15 +522,32 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			let (subchain_number, subchain_head) = rx
-				.await
-				.map_err(Error::OverseerDisconnected)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-			// The the total lag accounting for disputes.
-			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-			self.metrics.note_disputes_finality_lag(lag_disputes);
-			(lag_disputes, subchain_head)
+			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
+			// and return `target_hash` as maximal vote. It is safer to contain this error here
+			// and not push it up the stack to cause additional issues in GRANDPA/BABE.
+			let (lag, subchain_head) =
+				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
+					// If request succeded we will receive (block number, block hash).
+					Ok((subchain_number, subchain_head)) => {
+						// The the total lag accounting for disputes.
+						let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+						self.metrics.note_disputes_finality_lag(lag_disputes);
+						(lag_disputes, subchain_head)
+					},
+					Err(e) => {
+						tracing::error!(
+							target: LOG_TARGET,
+							error = ?e,
+							"Call to `DetermineUndisputedChain` failed",
+						);
+						// We need to return a sane finality target. But, we are unable to ensure we are not
+						// finalizing something that is being disputed or has been concluded as invalid. We will be
+						// conservative here and not vote for finality above the ancestor passed in.
+						return Ok(target_hash)
+					},
+				};
+			(lag, subchain_head)
 		} else {
 			(lag, subchain_head)
 		};

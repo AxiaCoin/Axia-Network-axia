@@ -1,28 +1,31 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! Message receiving race delivers proof-of-messages-delivery from lane.target to lane.source.
+//! Message receiving race delivers proof-of-messages-delivery from "lane.target" to "lane.source".
 
-use crate::message_lane::{MessageLane, SourceHeaderIdOf, TargetHeaderIdOf};
-use crate::message_lane_loop::{
-	SourceClient as MessageLaneSourceClient, SourceClientState, TargetClient as MessageLaneTargetClient,
-	TargetClientState,
+use crate::{
+	message_lane::{MessageLane, SourceHeaderIdOf, TargetHeaderIdOf},
+	message_lane_loop::{
+		SourceClient as MessageLaneSourceClient, SourceClientState,
+		TargetClient as MessageLaneTargetClient, TargetClientState,
+	},
+	message_race_loop::{
+		MessageRace, NoncesRange, SourceClient, SourceClientNonces, TargetClient,
+		TargetClientNonces,
+	},
+	message_race_strategy::BasicStrategy,
+	metrics::MessageLaneLoopMetrics,
 };
-use crate::message_race_loop::{
-	MessageRace, NoncesRange, SourceClient, SourceClientNonces, TargetClient, TargetClientNonces,
-};
-use crate::message_race_strategy::BasicStrategy;
-use crate::metrics::MessageLaneLoopMetrics;
 
 use async_trait::async_trait;
 use bp_messages::MessageNonce;
@@ -129,11 +132,7 @@ where
 		nonces: RangeInclusive<MessageNonce>,
 		_proof_parameters: Self::ProofParameters,
 	) -> Result<
-		(
-			TargetHeaderIdOf<P>,
-			RangeInclusive<MessageNonce>,
-			P::MessagesReceivingProof,
-		),
+		(TargetHeaderIdOf<P>, RangeInclusive<MessageNonce>, P::MessagesReceivingProof),
 		Self::Error,
 	> {
 		self.client
@@ -168,19 +167,14 @@ where
 		at_block: SourceHeaderIdOf<P>,
 		update_metrics: bool,
 	) -> Result<(SourceHeaderIdOf<P>, TargetClientNonces<()>), Self::Error> {
-		let (at_block, latest_confirmed_nonce) = self.client.latest_confirmed_received_nonce(at_block).await?;
+		let (at_block, latest_confirmed_nonce) =
+			self.client.latest_confirmed_received_nonce(at_block).await?;
 		if update_metrics {
 			if let Some(metrics_msg) = self.metrics_msg.as_ref() {
 				metrics_msg.update_source_latest_confirmed_nonce::<P>(latest_confirmed_nonce);
 			}
 		}
-		Ok((
-			at_block,
-			TargetClientNonces {
-				latest_nonce: latest_confirmed_nonce,
-				nonces_data: (),
-			},
-		))
+		Ok((at_block, TargetClientNonces { latest_nonce: latest_confirmed_nonce, nonces_data: () }))
 	}
 
 	async fn submit_proof(
@@ -189,9 +183,7 @@ where
 		nonces: RangeInclusive<MessageNonce>,
 		proof: P::MessagesReceivingProof,
 	) -> Result<RangeInclusive<MessageNonce>, Self::Error> {
-		self.client
-			.submit_messages_receiving_proof(generated_at_block, proof)
-			.await?;
+		self.client.submit_messages_receiving_proof(generated_at_block, proof).await?;
 		Ok(nonces)
 	}
 }

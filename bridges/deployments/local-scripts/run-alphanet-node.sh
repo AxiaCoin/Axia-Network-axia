@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Run a development instance of the AlphaNet Axlib bridge node.
+# Run a development instance of the Alphanet Axlib bridge node.
 # To override the default port just export ALPHANET_PORT=9945
 #
 # Note: This script will not work out of the box with the bridges
-# repo since it relies on a AXIA binary.
+# repo since it relies on a Axia binary.
 
 ALPHANET_PORT="${ALPHANET_PORT:-9944}"
 

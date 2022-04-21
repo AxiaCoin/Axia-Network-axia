@@ -1,40 +1,44 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Error types for the subsystem requests.
 
 use crate::JaegerError;
 
 /// A description of an error causing the runtime API request to be unservable.
-#[derive(Debug, Clone)]
-pub struct RuntimeApiError(String);
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum RuntimeApiError {
+	/// The runtime API cannot be executed due to a
+	#[error("The runtime API '{runtime_api_name}' cannot be executed")]
+	Execution {
+		/// The runtime API being called
+		runtime_api_name: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source]
+		source: std::sync::Arc<dyn 'static + std::error::Error + Send + Sync>,
+	},
 
-impl From<String> for RuntimeApiError {
-	fn from(s: String) -> Self {
-		RuntimeApiError(s)
-	}
+	/// The runtime API request in question cannot be executed because the runtime at the requested
+	/// relay-parent is an old version.
+	#[error("The API is not supported by the runtime at the relay-parent")]
+	NotSupported {
+		/// The runtime API being called
+		runtime_api_name: &'static str,
+	},
 }
-
-impl core::fmt::Display for RuntimeApiError {
-	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-		write!(f, "{}", self.0)
-	}
-}
-
-impl std::error::Error for RuntimeApiError {}
 
 /// A description of an error causing the chain API request to be unservable.
 #[derive(Debug, Clone)]

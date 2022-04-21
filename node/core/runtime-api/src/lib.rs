@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Implements the Runtime API Subsystem
 //!
@@ -23,7 +23,10 @@
 #![warn(missing_docs)]
 
 use axia_node_subsystem_util::metrics::{self, prometheus};
-use axia_primitives::v1::{Block, BlockId, Hash, AllychainHost};
+use axia_primitives::{
+	v1::{Block, BlockId, Hash},
+	v2::AllychainHost,
+};
 use axia_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -116,35 +119,52 @@ where
 				self.requests_cache.cache_validator_groups(relay_parent, groups),
 			AvailabilityCores(relay_parent, cores) =>
 				self.requests_cache.cache_availability_cores(relay_parent, cores),
-			PersistedValidationData(relay_parent, para_id, assumption, data) => self
+			PersistedValidationData(relay_parent, ally_id, assumption, data) => self
 				.requests_cache
-				.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
-			CheckValidationOutputs(relay_parent, para_id, commitments, b) => self
+				.cache_persisted_validation_data((relay_parent, ally_id, assumption), data),
+			AssumedValidationData(
+				_relay_parent,
+				ally_id,
+				expected_persisted_validation_data_hash,
+				data,
+			) => self.requests_cache.cache_assumed_validation_data(
+				(ally_id, expected_persisted_validation_data_hash),
+				data,
+			),
+			CheckValidationOutputs(relay_parent, ally_id, commitments, b) => self
 				.requests_cache
-				.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
+				.cache_check_validation_outputs((relay_parent, ally_id, commitments), b),
 			SessionIndexForChild(relay_parent, session_index) =>
 				self.requests_cache.cache_session_index_for_child(relay_parent, session_index),
-			ValidationCode(relay_parent, para_id, assumption, code) => self
+			ValidationCode(relay_parent, ally_id, assumption, code) => self
 				.requests_cache
-				.cache_validation_code((relay_parent, para_id, assumption), code),
+				.cache_validation_code((relay_parent, ally_id, assumption), code),
 			ValidationCodeByHash(_relay_parent, validation_code_hash, code) =>
 				self.requests_cache.cache_validation_code_by_hash(validation_code_hash, code),
-			CandidatePendingAvailability(relay_parent, para_id, candidate) => self
+			CandidatePendingAvailability(relay_parent, ally_id, candidate) => self
 				.requests_cache
-				.cache_candidate_pending_availability((relay_parent, para_id), candidate),
+				.cache_candidate_pending_availability((relay_parent, ally_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
 			SessionInfo(_relay_parent, session_index, info) =>
-				self.requests_cache.cache_session_info(session_index, info),
-			DmqContents(relay_parent, para_id, messages) =>
-				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
-			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
+				if let Some(info) = info {
+					self.requests_cache.cache_session_info(session_index, info);
+				},
+			DmqContents(relay_parent, ally_id, messages) =>
+				self.requests_cache.cache_dmq_contents((relay_parent, ally_id), messages),
+			InboundHrmpChannelsContents(relay_parent, ally_id, contents) => self
 				.requests_cache
-				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
+				.cache_inbound_hrmp_channel_contents((relay_parent, ally_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
+			PvfsRequirePrecheck(relay_parent, pvfs) =>
+				self.requests_cache.cache_pvfs_require_precheck(relay_parent, pvfs),
+			SubmitPvfCheckStatement(_, _, _, ()) => {},
+			ValidationCodeHash(relay_parent, ally_id, assumption, hash) => self
+				.requests_cache
+				.cache_validation_code_hash((relay_parent, ally_id, assumption), hash),
 		}
 	}
 
@@ -186,6 +206,21 @@ where
 			Request::PersistedValidationData(para, assumption, sender) =>
 				query!(persisted_validation_data(para, assumption), sender)
 					.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
+			Request::AssumedValidationData(
+				para,
+				expected_persisted_validation_data_hash,
+				sender,
+			) => query!(
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				sender
+			)
+			.map(|sender| {
+				Request::AssumedValidationData(
+					para,
+					expected_persisted_validation_data_hash,
+					sender,
+				)
+			}),
 			Request::CheckValidationOutputs(para, commitments, sender) =>
 				query!(check_validation_outputs(para, commitments), sender)
 					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
@@ -202,8 +237,15 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
-				.map(|sender| Request::SessionInfo(index, sender)),
+			Request::SessionInfo(index, sender) => {
+				if let Some(info) = self.requests_cache.session_info(index) {
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(Some(info.clone())));
+					None
+				} else {
+					Some(Request::SessionInfo(index, sender))
+				}
+			},
 			Request::DmqContents(id, sender) =>
 				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
@@ -213,6 +255,15 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
+			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
+				.map(|sender| Request::PvfsRequirePrecheck(sender)),
+			request @ Request::SubmitPvfCheckStatement(_, _, _) => {
+				// This request is side-effecting and thus cannot be cached.
+				Some(request)
+			},
+			Request::ValidationCodeHash(para, assumption, sender) =>
+				query!(validation_code_hash(para, assumption), sender)
+					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 		}
 	}
 
@@ -246,7 +297,8 @@ where
 				)
 			}
 		} else {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, request);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
 			self.active_requests.push(receiver);
 		}
 	}
@@ -264,7 +316,8 @@ where
 		}
 
 		if let Some((req, recv)) = self.waiting_requests.pop_front() {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, req);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
 			self.active_requests.push(recv);
 		}
 	}
@@ -310,11 +363,39 @@ where
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
-		($req_variant:ident, $api_name:ident ($($param:expr),*), $sender:expr) => {{
+		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
-				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
+
+			use sp_api::ApiExt;
+			let runtime_version = api.api_version::<dyn AllychainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_else(|e| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"cannot query the runtime API version: {}",
+						e,
+					);
+					Some(0)
+				})
+				.unwrap_or_else(|| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"no runtime version is reported"
+					);
+					0
+				});
+
+			let res = if runtime_version >= $version {
+				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
+					.map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: stringify!($api_name),
+						source: std::sync::Arc::new(e),
+					})
+			} else {
+				Err(RuntimeApiError::NotSupported {
+					runtime_api_name: stringify!($api_name),
+				})
+			};
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
 
@@ -323,30 +404,105 @@ where
 	}
 
 	match request {
-		Request::Authorities(sender) => query!(Authorities, authorities(), sender),
-		Request::Validators(sender) => query!(Validators, validators(), sender),
-		Request::ValidatorGroups(sender) => query!(ValidatorGroups, validator_groups(), sender),
+		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
+		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
+		Request::ValidatorGroups(sender) =>
+			query!(ValidatorGroups, validator_groups(), ver = 1, sender),
 		Request::AvailabilityCores(sender) =>
-			query!(AvailabilityCores, availability_cores(), sender),
-		Request::PersistedValidationData(para, assumption, sender) =>
-			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
-		Request::CheckValidationOutputs(para, commitments, sender) =>
-			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
+			query!(AvailabilityCores, availability_cores(), ver = 1, sender),
+		Request::PersistedValidationData(para, assumption, sender) => query!(
+			PersistedValidationData,
+			persisted_validation_data(para, assumption),
+			ver = 1,
+			sender
+		),
+		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) =>
+			query!(
+				AssumedValidationData,
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				ver = 1,
+				sender
+			),
+		Request::CheckValidationOutputs(para, commitments, sender) => query!(
+			CheckValidationOutputs,
+			check_validation_outputs(para, commitments),
+			ver = 1,
+			sender
+		),
 		Request::SessionIndexForChild(sender) =>
-			query!(SessionIndexForChild, session_index_for_child(), sender),
+			query!(SessionIndexForChild, session_index_for_child(), ver = 1, sender),
 		Request::ValidationCode(para, assumption, sender) =>
-			query!(ValidationCode, validation_code(para, assumption), sender),
-		Request::ValidationCodeByHash(validation_code_hash, sender) =>
-			query!(ValidationCodeByHash, validation_code_by_hash(validation_code_hash), sender),
-		Request::CandidatePendingAvailability(para, sender) =>
-			query!(CandidatePendingAvailability, candidate_pending_availability(para), sender),
-		Request::CandidateEvents(sender) => query!(CandidateEvents, candidate_events(), sender),
-		Request::SessionInfo(index, sender) => query!(SessionInfo, session_info(index), sender),
-		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), sender),
+			query!(ValidationCode, validation_code(para, assumption), ver = 1, sender),
+		Request::ValidationCodeByHash(validation_code_hash, sender) => query!(
+			ValidationCodeByHash,
+			validation_code_by_hash(validation_code_hash),
+			ver = 1,
+			sender
+		),
+		Request::CandidatePendingAvailability(para, sender) => query!(
+			CandidatePendingAvailability,
+			candidate_pending_availability(para),
+			ver = 1,
+			sender
+		),
+		Request::CandidateEvents(sender) =>
+			query!(CandidateEvents, candidate_events(), ver = 1, sender),
+		Request::SessionInfo(index, sender) => {
+			use sp_api::ApiExt;
+
+			let api = client.runtime_api();
+			let block_id = BlockId::Hash(relay_parent);
+
+			let api_version = api
+				.api_version::<dyn AllychainHost<Block>>(&BlockId::Hash(relay_parent))
+				.unwrap_or_default()
+				.unwrap_or_default();
+
+			let res = if api_version >= 2 {
+				let res =
+					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					});
+				metrics.on_request(res.is_ok());
+				res
+			} else {
+				#[allow(deprecated)]
+				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
+					RuntimeApiError::Execution {
+						runtime_api_name: "SessionInfo",
+						source: std::sync::Arc::new(e),
+					}
+				});
+				metrics.on_request(res.is_ok());
+
+				res.map(|r| r.map(|old| old.into()))
+			};
+
+			let _ = sender.send(res.clone());
+
+			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
+		},
+		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
-			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
-		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
-		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
+			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
+		Request::CurrentBabeEpoch(sender) =>
+			query!(CurrentBabeEpoch, current_epoch(), ver = 1, sender),
+		Request::FetchOnChainVotes(sender) =>
+			query!(FetchOnChainVotes, on_chain_votes(), ver = 1, sender),
+		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
+			query!(
+				SubmitPvfCheckStatement,
+				submit_pvf_check_statement(stmt, signature),
+				ver = 2,
+				sender
+			)
+		},
+		Request::PvfsRequirePrecheck(sender) => {
+			query!(PvfsRequirePrecheck, pvfs_require_precheck(), ver = 2, sender)
+		},
+		Request::ValidationCodeHash(para, assumption, sender) =>
+			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 	}
 }
 
@@ -391,7 +547,7 @@ impl metrics::Metrics for Metrics {
 			chain_api_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"allychain_runtime_api_requests_total",
+						"axia_allychain_runtime_api_requests_total",
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
@@ -400,7 +556,7 @@ impl metrics::Metrics for Metrics {
 			)?,
 			make_runtime_api_request: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_runtime_api_make_runtime_api_request",
+					"axia_allychain_runtime_api_make_runtime_api_request",
 					"Time spent within `runtime_api::make_runtime_api_request`",
 				))?,
 				registry,

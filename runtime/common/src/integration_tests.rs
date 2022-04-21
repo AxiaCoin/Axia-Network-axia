@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Mocking utilities for testing with real pallets.
 
@@ -30,13 +30,18 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use primitives::v1::{
-	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
+	BlockNumber, HeadData, Header, Id as AllyId, ValidationCode, LOWEST_PUBLIC_ID,
 };
-use runtime_allychains::{configuration, paras, shared, Origin as ParaOrigin, ParaLifecycle};
+use runtime_allychains::{
+	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
+};
 use sp_core::{crypto::KeyTypeId, H256};
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup, One};
+use sp_runtime::{
+	traits::{BlakeTwo256, IdentityLookup, One},
+	transaction_validity::TransactionPriority,
+};
 use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -59,16 +64,25 @@ frame_support::construct_runtime!(
 
 		// Allychains Runtime
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-		Paras: paras::{Pallet, Origin, Call, Storage, Event, Config},
+		Paras: paras::{Pallet, Call, Storage, Event, Config},
 		ParasShared: shared::{Pallet, Call, Storage},
+		AllychainsOrigin: origin::{Pallet, Origin},
 
-		// Para Onboarding Pallets
+		// Ally Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
 
@@ -102,6 +116,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 parameter_types! {
@@ -164,10 +179,17 @@ impl configuration::Config for Test {
 
 impl shared::Config for Test {}
 
+impl origin::Config for Test {}
+
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl paras::Config for Test {
-	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = crate::mock::TestNextSessionRotation;
 }
 
 parameter_types! {
@@ -212,6 +234,7 @@ impl slots::Config for Test {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = LeaseOffset;
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::slots::TestWeightInfo;
 }
 
@@ -288,12 +311,10 @@ fn run_to_block(n: u32) {
 	assert!(System::block_number() < n);
 	while System::block_number() < n {
 		let block_number = System::block_number();
-		AllPallets::on_finalize(block_number);
-		System::on_finalize(block_number);
+		AllPalletsWithSystem::on_finalize(block_number);
 		System::set_block_number(block_number + 1);
-		System::on_initialize(block_number + 1);
 		maybe_new_session(block_number + 1);
-		AllPallets::on_initialize(block_number + 1);
+		AllPalletsWithSystem::on_initialize(block_number + 1);
 	}
 }
 
@@ -304,6 +325,10 @@ fn run_to_session(n: u32) {
 
 fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
+}
+
+fn contains_event(event: Event) -> bool {
+	System::events().iter().any(|x| x.event == event)
 }
 
 // Runs an end to end test of the auction, crowdloan, slots, and onboarding process over varying
@@ -319,50 +344,50 @@ fn basic_end_to_end_works() {
 			// User 1 and 2 will own allychains
 			Balances::make_free_balance_be(&1, 1_000_000_000);
 			Balances::make_free_balance_be(&2, 1_000_000_000);
-			// First register 2 parathreads
+			// First register 2 allythreads
 			let genesis_head = Registrar::worst_head_data();
 			let validation_code = Registrar::worst_validation_code();
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				ParaId::from(para_1),
+				AllyId::from(para_1),
 				genesis_head.clone(),
 				validation_code.clone(),
 			));
 			assert_ok!(Registrar::reserve(Origin::signed(2)));
 			assert_ok!(Registrar::register(
 				Origin::signed(2),
-				ParaId::from(2001),
+				AllyId::from(2001),
 				genesis_head,
 				validation_code,
 			));
 
 			// Paras should be onboarding
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Onboarding));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Onboarding));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Onboarding));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Onboarding));
 
 			// Start a new auction in the future
 			let duration = 99u32 + offset;
 			let lease_period_index_start = 4u32;
 			assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
-			// 2 sessions later they are parathreads
+			// 2 sessions later they are allythreads
 			run_to_session(2);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allythread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allythread));
 
-			// Para 1 will bid directly for slot 1, 2
-			// Open a crowdloan for Para 2 for slot 3, 4
+			// Ally 1 will bid directly for slot 1, 2
+			// Open a crowdloan for Ally 2 for slot 3, 4
 			assert_ok!(Crowdloan::create(
 				Origin::signed(2),
-				ParaId::from(para_2),
+				AllyId::from(para_2),
 				1_000,                        // Cap
 				lease_period_index_start + 2, // First Slot
 				lease_period_index_start + 3, // Last Slot
 				200 + offset,                 // Block End
 				None,
 			));
-			let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(para_2));
+			let crowdloan_account = Crowdloan::fund_account_id(AllyId::from(para_2));
 
 			// Auction ending begins on block 100 + offset, so we make a bid before then.
 			run_to_block(90 + offset);
@@ -373,7 +398,7 @@ fn basic_end_to_end_works() {
 			// User 10 will bid directly for allychain 1
 			assert_ok!(Auctions::bid(
 				Origin::signed(10),
-				ParaId::from(para_1),
+				AllyId::from(para_1),
 				1,                            // Auction Index
 				lease_period_index_start + 0, // First Slot
 				lease_period_index_start + 1, // Last slot
@@ -382,25 +407,24 @@ fn basic_end_to_end_works() {
 
 			// User 2 will be a contribute to crowdloan for allychain 2
 			Balances::make_free_balance_be(&2, 1_000_000_000);
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), ParaId::from(para_2), 920, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(2), AllyId::from(para_2), 920, None));
 
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
-			assert_eq!(
-				last_event(),
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
-			);
+			assert!(contains_event(
+				crowdloan::Event::<Test>::HandleBidResult(AllyId::from(para_2), Ok(())).into()
+			));
 			run_to_block(110 + offset);
 			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
 
 			// Paras should have won slots
 			assert_eq!(
-				slots::Leases::<Test>::get(ParaId::from(para_1)),
+				slots::Leases::<Test>::get(AllyId::from(para_1)),
 				// -- 1 --- 2 --- 3 --------- 4 ------------ 5 --------
 				vec![None, None, None, Some((10, 910)), Some((10, 910))],
 			);
 			assert_eq!(
-				slots::Leases::<Test>::get(ParaId::from(para_2)),
+				slots::Leases::<Test>::get(AllyId::from(para_2)),
 				// -- 1 --- 2 --- 3 --- 4 --- 5 ---------------- 6 --------------------------- 7 ----------------
 				vec![
 					None,
@@ -416,7 +440,7 @@ fn basic_end_to_end_works() {
 			// Should not be able to contribute to a winning crowdloan
 			Balances::make_free_balance_be(&3, 1_000_000_000);
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(3), ParaId::from(2001), 10, None),
+				Crowdloan::contribute(Origin::signed(3), AllyId::from(2001), 10, None),
 				CrowdloanError::<Test>::BidOrLeaseActive
 			);
 
@@ -424,56 +448,56 @@ fn basic_end_to_end_works() {
 			let lease_start_block = 400 + offset;
 			run_to_block(lease_start_block);
 
-			// First slot, Para 1 should be transitioning to Allychain
+			// First slot, Ally 1 should be transitioning to Allychain
 			assert_eq!(
-				Paras::lifecycle(ParaId::from(para_1)),
-				Some(ParaLifecycle::UpgradingParathread)
+				Paras::lifecycle(AllyId::from(para_1)),
+				Some(ParaLifecycle::UpgradingAllythread)
 			);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allythread));
 
 			// Two sessions later, it has upgraded
 			run_to_block(lease_start_block + 20);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Allychain));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allychain));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allythread));
 
 			// Second slot nothing happens :)
 			run_to_block(lease_start_block + 100);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Allychain));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allychain));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allythread));
 
-			// Third slot, Para 2 should be upgrading, and Para 1 is downgrading
+			// Third slot, Ally 2 should be upgrading, and Ally 1 is downgrading
 			run_to_block(lease_start_block + 200);
 			assert_eq!(
-				Paras::lifecycle(ParaId::from(para_1)),
+				Paras::lifecycle(AllyId::from(para_1)),
 				Some(ParaLifecycle::DowngradingAllychain)
 			);
 			assert_eq!(
-				Paras::lifecycle(ParaId::from(para_2)),
-				Some(ParaLifecycle::UpgradingParathread)
+				Paras::lifecycle(AllyId::from(para_2)),
+				Some(ParaLifecycle::UpgradingAllythread)
 			);
 
 			// Two sessions later, they have transitioned
 			run_to_block(lease_start_block + 220);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Allychain));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allythread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allychain));
 
 			// Fourth slot nothing happens :)
 			run_to_block(lease_start_block + 300);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Allychain));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allythread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allychain));
 
-			// Fifth slot, Para 2 is downgrading
+			// Fifth slot, Ally 2 is downgrading
 			run_to_block(lease_start_block + 400);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allythread));
 			assert_eq!(
-				Paras::lifecycle(ParaId::from(para_2)),
+				Paras::lifecycle(AllyId::from(para_2)),
 				Some(ParaLifecycle::DowngradingAllychain)
 			);
 
-			// Two sessions later, Para 2 is downgraded
+			// Two sessions later, Ally 2 is downgraded
 			run_to_block(lease_start_block + 420);
-			assert_eq!(Paras::lifecycle(ParaId::from(para_1)), Some(ParaLifecycle::Parathread));
-			assert_eq!(Paras::lifecycle(ParaId::from(para_2)), Some(ParaLifecycle::Parathread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_1)), Some(ParaLifecycle::Allythread));
+			assert_eq!(Paras::lifecycle(AllyId::from(para_2)), Some(ParaLifecycle::Allythread));
 		});
 	}
 }
@@ -482,7 +506,7 @@ fn basic_end_to_end_works() {
 fn basic_errors_fail() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
-		let para_id = LOWEST_PUBLIC_ID;
+		let ally_id = LOWEST_PUBLIC_ID;
 		// Can't double register
 		Balances::make_free_balance_be(&1, 1_000_000_000);
 		Balances::make_free_balance_be(&2, 1_000_000_000);
@@ -492,13 +516,13 @@ fn basic_errors_fail() {
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			para_id,
+			ally_id,
 			genesis_head.clone(),
 			validation_code.clone(),
 		));
 		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_noop!(
-			Registrar::register(Origin::signed(2), para_id, genesis_head, validation_code,),
+			Registrar::register(Origin::signed(2), ally_id, genesis_head, validation_code,),
 			paras_registrar::Error::<Test>::NotOwner
 		);
 
@@ -511,7 +535,7 @@ fn basic_errors_fail() {
 		assert_noop!(
 			Crowdloan::create(
 				Origin::signed(2),
-				para_id,
+				ally_id,
 				1_000,                        // Cap
 				lease_period_index_start + 2, // First Slot
 				lease_period_index_start + 3, // Last Slot
@@ -529,7 +553,7 @@ fn competing_slots() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one());
 		let max_bids = 10u32;
-		let para_id = LOWEST_PUBLIC_ID;
+		let ally_id = LOWEST_PUBLIC_ID;
 
 		// Create n paras and owners
 		for n in 1..=max_bids {
@@ -539,7 +563,7 @@ fn competing_slots() {
 			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
-				para_id + n - 1,
+				ally_id + n - 1,
 				genesis_head,
 				validation_code,
 			));
@@ -576,7 +600,7 @@ fn competing_slots() {
 			// Users will bid directly for allychain
 			assert_ok!(Auctions::bid(
 				Origin::signed(n * 10),
-				para_id + n - 1,
+				ally_id + n - 1,
 				1,                                // Auction Index
 				lease_period_index_start + start, // First Slot
 				lease_period_index_start + end,   // Last slot
@@ -591,18 +615,18 @@ fn competing_slots() {
 		// 900 + 4500 + 2x 8100 = 21,600
 		// 900 + 4500 + 7200 + 9000 = 21,600
 		assert_eq!(
-			slots::Leases::<Test>::get(para_id),
+			slots::Leases::<Test>::get(ally_id),
 			// -- 1 --- 2 --- 3 ---------- 4 ------
 			vec![None, None, None, Some((10, 900))],
 		);
 		assert_eq!(
-			slots::Leases::<Test>::get(para_id + 4),
+			slots::Leases::<Test>::get(ally_id + 4),
 			// -- 1 --- 2 --- 3 --- 4 ---------- 5 -------
 			vec![None, None, None, None, Some((50, 4500))],
 		);
 		// TODO: Is this right?
 		assert_eq!(
-			slots::Leases::<Test>::get(para_id + 8),
+			slots::Leases::<Test>::get(ally_id + 8),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ---------- 6 --------------- 7 -------
 			vec![None, None, None, None, None, Some((90, 8100)), Some((90, 8100))],
 		);
@@ -624,7 +648,7 @@ fn competing_bids() {
 			assert_ok!(Registrar::reserve(Origin::signed(n)));
 			assert_ok!(Registrar::register(
 				Origin::signed(n),
-				ParaId::from(start_para + n),
+				AllyId::from(start_para + n),
 				genesis_head,
 				validation_code,
 			));
@@ -643,7 +667,7 @@ fn competing_bids() {
 			// Create a crowdloan for each para
 			assert_ok!(Crowdloan::create(
 				Origin::signed(n),
-				ParaId::from(start_para + n),
+				AllyId::from(start_para + n),
 				100_000,                      // Cap
 				lease_period_index_start + 2, // First Slot
 				lease_period_index_start + 3, // Last Slot
@@ -658,13 +682,13 @@ fn competing_bids() {
 
 			Balances::make_free_balance_be(&(n * 10), n * 1_000);
 
-			let para = start_para + n % 3 + 1;
+			let ally = start_para + n % 3 + 1;
 
 			if n % 2 == 0 {
 				// User 10 will bid directly for allychain 1
 				assert_ok!(Auctions::bid(
 					Origin::signed(n * 10),
-					ParaId::from(para),
+					AllyId::from(para),
 					1,                            // Auction Index
 					lease_period_index_start + 0, // First Slot
 					lease_period_index_start + 1, // Last slot
@@ -674,7 +698,7 @@ fn competing_bids() {
 				// User 20 will be a contribute to crowdloan for allychain 2
 				assert_ok!(Crowdloan::contribute(
 					Origin::signed(n * 10),
-					ParaId::from(para),
+					AllyId::from(para),
 					n + 900,
 					None,
 				));
@@ -685,9 +709,9 @@ fn competing_bids() {
 		run_to_block(starting_block + 110);
 
 		// Appropriate Paras should have won slots
-		let crowdloan_2 = Crowdloan::fund_account_id(ParaId::from(2001));
+		let crowdloan_2 = Crowdloan::fund_account_id(AllyId::from(2001));
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// -- 1 --- 2 --- 3 --- 4 --- 5 ------------- 6 ------------------------ 7 -------------
 			vec![
 				None,
@@ -700,7 +724,7 @@ fn competing_bids() {
 			],
 		);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2002)),
+			slots::Leases::<Test>::get(AllyId::from(2002)),
 			// -- 1 --- 2 --- 3 ---------- 4 --------------- 5 -------
 			vec![None, None, None, Some((80, 7200)), Some((80, 7200))],
 		);
@@ -709,59 +733,59 @@ fn competing_bids() {
 
 #[test]
 fn basic_swap_works() {
-	// This test will test a swap between a allychain and parathread works successfully.
+	// This test will test a swap between a allychain and allythread works successfully.
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
 										  // User 1 and 2 will own paras
 		Balances::make_free_balance_be(&1, 1_000_000_000);
 		Balances::make_free_balance_be(&2, 1_000_000_000);
-		// First register 2 parathreads with different data
+		// First register 2 allythreads with different data
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
 		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
-			ParaId::from(2001),
+			AllyId::from(2001),
 			test_genesis_head(20),
 			test_validation_code(20),
 		));
 
 		// Paras should be onboarding
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Onboarding));
 
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
-		// 2 sessions later they are parathreads
+		// 2 sessions later they are allythreads
 		run_to_session(2);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Allythread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Allythread));
 
-		// Open a crowdloan for Para 1 for slots 0-3
+		// Open a crowdloan for Ally 1 for slots 0-3
 		assert_ok!(Crowdloan::create(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1_000_000,                    // Cap
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 3, // Last Slot
 			200,                          // Block End
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let crowdloan_account = Crowdloan::fund_account_id(AllyId::from(2000));
 
 		// Bunch of contributions
 		let mut total = 0;
 		for i in 10..20 {
 			Balances::make_free_balance_be(&i, 1_000_000_000);
-			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(2000), 900 - i, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), AllyId::from(2000), 900 - i, None));
 			total += 900 - i;
 		}
 		assert!(total > 0);
@@ -771,86 +795,86 @@ fn basic_swap_works() {
 		run_to_block(200);
 
 		// Deposit is appropriately taken
-		// ----------------------------------------- para deposit --- crowdloan
+		// ----------------------------------------- ally deposit --- crowdloan
 		assert_eq!(Balances::reserved_balance(&1), (500 + 10 * 2 * 1) + 100);
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
 		assert_eq!(Balances::reserved_balance(&crowdloan_account), total);
 		// Crowdloan is appropriately set
-		assert!(Crowdloan::funds(ParaId::from(2000)).is_some());
-		assert!(Crowdloan::funds(ParaId::from(2001)).is_none());
+		assert!(Crowdloan::funds(AllyId::from(2000)).is_some());
+		assert!(Crowdloan::funds(AllyId::from(2001)).is_none());
 
 		// New leases will start on block 400
 		let lease_start_block = 400;
 		run_to_block(lease_start_block);
 
-		// Slots are won by Para 1
-		assert!(!Slots::lease(ParaId::from(2000)).is_empty());
-		assert!(Slots::lease(ParaId::from(2001)).is_empty());
+		// Slots are won by Ally 1
+		assert!(!Slots::lease(AllyId::from(2000)).is_empty());
+		assert!(Slots::lease(AllyId::from(2001)).is_empty());
 
 		// 2 sessions later it is a allychain
 		run_to_block(lease_start_block + 20);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Allychain));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Allychain));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Allythread));
 
 		// Initiate a swap
 		assert_ok!(Registrar::swap(
 			para_origin(2000).into(),
-			ParaId::from(2000),
-			ParaId::from(2001)
+			AllyId::from(2000),
+			AllyId::from(2001)
 		));
 		assert_ok!(Registrar::swap(
 			para_origin(2001).into(),
-			ParaId::from(2001),
-			ParaId::from(2000)
+			AllyId::from(2001),
+			AllyId::from(2000)
 		));
 
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::DowngradingAllychain));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::UpgradingParathread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::DowngradingAllychain));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::UpgradingAllythread));
 
 		// 2 session later they have swapped
 		run_to_block(lease_start_block + 40);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Allychain));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Allythread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Allychain));
 
-		// Deregister parathread
-		assert_ok!(Registrar::deregister(para_origin(2000).into(), ParaId::from(2000)));
+		// Deregister allythread
+		assert_ok!(Registrar::deregister(para_origin(2000).into(), AllyId::from(2000)));
 		// Correct deposit is unreserved
 		assert_eq!(Balances::reserved_balance(&1), 100); // crowdloan deposit left over
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
 		// Crowdloan ownership is swapped
-		assert!(Crowdloan::funds(ParaId::from(2000)).is_none());
-		assert!(Crowdloan::funds(ParaId::from(2001)).is_some());
+		assert!(Crowdloan::funds(AllyId::from(2000)).is_none());
+		assert!(Crowdloan::funds(AllyId::from(2001)).is_some());
 		// Slot is swapped
-		assert!(Slots::lease(ParaId::from(2000)).is_empty());
-		assert!(!Slots::lease(ParaId::from(2001)).is_empty());
+		assert!(Slots::lease(AllyId::from(2000)).is_empty());
+		assert!(!Slots::lease(AllyId::from(2001)).is_empty());
 
 		// Cant dissolve
 		assert_noop!(
-			Crowdloan::dissolve(Origin::signed(1), ParaId::from(2000)),
-			CrowdloanError::<Test>::InvalidParaId
+			Crowdloan::dissolve(Origin::signed(1), AllyId::from(2000)),
+			CrowdloanError::<Test>::InvalidAllyId
 		);
 		assert_noop!(
-			Crowdloan::dissolve(Origin::signed(2), ParaId::from(2001)),
+			Crowdloan::dissolve(Origin::signed(2), AllyId::from(2001)),
 			CrowdloanError::<Test>::NotReadyToDissolve
 		);
 
-		// Go way in the future when the para is offboarded
+		// Go way in the future when the ally is offboarded
 		run_to_block(lease_start_block + 1000);
 
 		// Withdraw of contributions works
 		assert_eq!(Balances::free_balance(&crowdloan_account), total);
 		for i in 10..20 {
-			assert_ok!(Crowdloan::withdraw(Origin::signed(i), i, ParaId::from(2001)));
+			assert_ok!(Crowdloan::withdraw(Origin::signed(i), i, AllyId::from(2001)));
 		}
 		assert_eq!(Balances::free_balance(&crowdloan_account), 0);
 
 		// Dissolve returns the balance of the person who put a deposit for crowdloan
-		assert_ok!(Crowdloan::dissolve(Origin::signed(1), ParaId::from(2001)));
+		assert_ok!(Crowdloan::dissolve(Origin::signed(1), AllyId::from(2001)));
 		assert_eq!(Balances::reserved_balance(&1), 0);
 		assert_eq!(Balances::reserved_balance(&2), 500 + 20 * 2 * 1);
 
 		// Final deregister sets everything back to the start
-		assert_ok!(Registrar::deregister(para_origin(2001).into(), ParaId::from(2001)));
+		assert_ok!(Registrar::deregister(para_origin(2001).into(), AllyId::from(2001)));
 		assert_eq!(Balances::reserved_balance(&2), 0);
 	})
 }
@@ -862,63 +886,63 @@ fn crowdloan_ending_period_bid() {
 										  // User 1 and 2 will own paras
 		Balances::make_free_balance_be(&1, 1_000_000_000);
 		Balances::make_free_balance_be(&2, 1_000_000_000);
-		// First register 2 parathreads
+		// First register 2 allythreads
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
 		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
-			ParaId::from(2001),
+			AllyId::from(2001),
 			test_genesis_head(20),
 			test_validation_code(20),
 		));
 
 		// Paras should be onboarding
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Onboarding));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Onboarding));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Onboarding));
 
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
-		// 2 sessions later they are parathreads
+		// 2 sessions later they are allythreads
 		run_to_session(2);
-		assert_eq!(Paras::lifecycle(ParaId::from(2000)), Some(ParaLifecycle::Parathread));
-		assert_eq!(Paras::lifecycle(ParaId::from(2001)), Some(ParaLifecycle::Parathread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2000)), Some(ParaLifecycle::Allythread));
+		assert_eq!(Paras::lifecycle(AllyId::from(2001)), Some(ParaLifecycle::Allythread));
 
-		// Open a crowdloan for Para 1 for slots 0-3
+		// Open a crowdloan for Ally 1 for slots 0-3
 		assert_ok!(Crowdloan::create(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1_000_000,                    // Cap
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 3, // Last Slot
 			200,                          // Block End
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let crowdloan_account = Crowdloan::fund_account_id(AllyId::from(2000));
 
 		// Bunch of contributions
 		let mut total = 0;
 		for i in 10..20 {
 			Balances::make_free_balance_be(&i, 1_000_000_000);
-			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(2000), 900 - i, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), AllyId::from(2000), 900 - i, None));
 			total += 900 - i;
 		}
 		assert!(total > 0);
 		assert_eq!(Balances::free_balance(&crowdloan_account), total);
 
-		// Bid for para 2 directly
+		// Bid for ally 2 directly
 		Balances::make_free_balance_be(&2, 1_000_000_000);
 		assert_ok!(Auctions::bid(
 			Origin::signed(2),
-			ParaId::from(2001),
+			AllyId::from(2001),
 			1,                            // Auction Index
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 1, // Last slot
@@ -930,23 +954,23 @@ fn crowdloan_ending_period_bid() {
 
 		assert_eq!(Auctions::auction_status(100), AuctionStatus::<u32>::EndingPeriod(0, 0));
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2001), 900));
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, AllyId::from(2001), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] =
-			Some((crowdloan_account, ParaId::from(2000), total));
+			Some((crowdloan_account, AllyId::from(2000), total));
 
 		assert_eq!(Auctions::winning(0), Some(winning));
 
 		run_to_block(101);
 
 		Balances::make_free_balance_be(&1234, 1_000_000_000);
-		assert_ok!(Crowdloan::contribute(Origin::signed(1234), ParaId::from(2000), 900, None));
+		assert_ok!(Crowdloan::contribute(Origin::signed(1234), AllyId::from(2000), 900, None));
 
 		// Data propagates correctly
 		run_to_block(102);
 		let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, ParaId::from(2001), 900));
+		winning[SlotRange::ZeroOne as u8 as usize] = Some((2, AllyId::from(2001), 900));
 		winning[SlotRange::ZeroThree as u8 as usize] =
-			Some((crowdloan_account, ParaId::from(2000), total + 900));
+			Some((crowdloan_account, AllyId::from(2000), total + 900));
 		assert_eq!(Auctions::winning(2), Some(winning));
 	})
 }
@@ -966,7 +990,7 @@ fn auction_bid_requires_registered_para() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(1),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				1,                            // Auction Index
 				lease_period_index_start + 0, // First Slot
 				lease_period_index_start + 1, // Last slot
@@ -979,7 +1003,7 @@ fn auction_bid_requires_registered_para() {
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
@@ -988,7 +1012,7 @@ fn auction_bid_requires_registered_para() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(1),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				1,                            // Auction Index
 				lease_period_index_start + 0, // First Slot
 				lease_period_index_start + 1, // Last slot
@@ -1004,7 +1028,7 @@ fn auction_bid_requires_registered_para() {
 		Balances::make_free_balance_be(&1, 1_000_000_000);
 		assert_ok!(Auctions::bid(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1,                            // Auction Index
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 1, // Last slot
@@ -1029,14 +1053,14 @@ fn gap_bids_work() {
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
 		assert_ok!(Registrar::reserve(Origin::signed(2)));
 		assert_ok!(Registrar::register(
 			Origin::signed(2),
-			ParaId::from(2001),
+			AllyId::from(2001),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
@@ -1050,7 +1074,7 @@ fn gap_bids_work() {
 		// Slot 1 for 100 from 10
 		assert_ok!(Auctions::bid(
 			Origin::signed(10),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1,                            // Auction Index
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 0, // Last slot
@@ -1059,17 +1083,17 @@ fn gap_bids_work() {
 		// Slot 4 for 400 from 10
 		assert_ok!(Auctions::bid(
 			Origin::signed(10),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1,                            // Auction Index
 			lease_period_index_start + 3, // First Slot
 			lease_period_index_start + 3, // Last slot
 			400,                          // Amount
 		));
 
-		// A bid for another para is counted separately.
+		// A bid for another ally is counted separately.
 		assert_ok!(Auctions::bid(
 			Origin::signed(10),
-			ParaId::from(2001),
+			AllyId::from(2001),
 			1,                            // Auction Index
 			lease_period_index_start + 1, // First Slot
 			lease_period_index_start + 1, // Last slot
@@ -1080,7 +1104,7 @@ fn gap_bids_work() {
 		// Slot 2 for 800 from 20, overtaking 10's bid
 		assert_ok!(Auctions::bid(
 			Origin::signed(20),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1,                            // Auction Index
 			lease_period_index_start + 1, // First Slot
 			lease_period_index_start + 1, // Last slot
@@ -1089,7 +1113,7 @@ fn gap_bids_work() {
 		// Slot 3 for 200 from 20
 		assert_ok!(Auctions::bid(
 			Origin::signed(20),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1,                            // Auction Index
 			lease_period_index_start + 2, // First Slot
 			lease_period_index_start + 2, // Last slot
@@ -1101,7 +1125,7 @@ fn gap_bids_work() {
 
 		// Should have won the lease periods
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// -- 1 --- 2 --- 3 ---------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![
 				None,
@@ -1122,7 +1146,7 @@ fn gap_bids_work() {
 
 		run_to_block(400);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![Some((10, 100)), Some((20, 800)), Some((20, 200)), Some((10, 400))],
 		);
@@ -1133,7 +1157,7 @@ fn gap_bids_work() {
 		// Lease period 4 is done, but nothing is unreserved since user 1 has a debt on lease 7
 		run_to_block(500);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// --------- 5 -------------- 6 -------------- 7 -------
 			vec![Some((20, 800)), Some((20, 200)), Some((10, 400))],
 		);
@@ -1144,7 +1168,7 @@ fn gap_bids_work() {
 		// Lease period 5 is done, and 20 will unreserve down to 200.
 		run_to_block(600);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// --------- 6 -------------- 7 -------
 			vec![Some((20, 200)), Some((10, 400))],
 		);
@@ -1154,7 +1178,7 @@ fn gap_bids_work() {
 		// Lease period 6 is done, and 20 will unreserve everything.
 		run_to_block(700);
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// --------- 7 -------
 			vec![Some((10, 400))],
 		);
@@ -1163,7 +1187,7 @@ fn gap_bids_work() {
 
 		// All leases are done. Everything is unreserved.
 		run_to_block(800);
-		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)), vec![]);
+		assert_eq!(slots::Leases::<Test>::get(AllyId::from(2000)), vec![]);
 		assert_eq!(Balances::reserved_balance(&10), 0);
 		assert_eq!(Balances::reserved_balance(&20), 0);
 	});
@@ -1176,11 +1200,11 @@ fn cant_bid_on_existing_lease_periods() {
 	new_test_ext().execute_with(|| {
 		assert!(System::block_number().is_one()); // So events are emitted
 		Balances::make_free_balance_be(&1, 1_000_000_000);
-		// First register a parathread
+		// First register a allythread
 		assert_ok!(Registrar::reserve(Origin::signed(1)));
 		assert_ok!(Registrar::register(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			test_genesis_head(10),
 			test_validation_code(10),
 		));
@@ -1191,26 +1215,26 @@ fn cant_bid_on_existing_lease_periods() {
 		let lease_period_index_start = 4u32;
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
-		// 2 sessions later they are parathreads
+		// 2 sessions later they are allythreads
 		run_to_session(2);
 
-		// Open a crowdloan for Para 1 for slots 0-3
+		// Open a crowdloan for Ally 1 for slots 0-3
 		assert_ok!(Crowdloan::create(
 			Origin::signed(1),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			1_000_000,                    // Cap
 			lease_period_index_start + 0, // First Slot
 			lease_period_index_start + 1, // Last Slot
 			400,                          // Long block end
 			None,
 		));
-		let crowdloan_account = Crowdloan::fund_account_id(ParaId::from(2000));
+		let crowdloan_account = Crowdloan::fund_account_id(AllyId::from(2000));
 
 		// Bunch of contributions
 		let mut total = 0;
 		for i in 10..20 {
 			Balances::make_free_balance_be(&i, 1_000_000_000);
-			assert_ok!(Crowdloan::contribute(Origin::signed(i), ParaId::from(2000), 900 - i, None));
+			assert_ok!(Crowdloan::contribute(Origin::signed(i), AllyId::from(2000), 900 - i, None));
 			total += 900 - i;
 		}
 		assert!(total > 0);
@@ -1221,7 +1245,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		// Appropriate Paras should have won slots
 		assert_eq!(
-			slots::Leases::<Test>::get(ParaId::from(2000)),
+			slots::Leases::<Test>::get(AllyId::from(2000)),
 			// -- 1 --- 2 --- 3 ------------- 4 ------------------------ 5 -------------
 			vec![
 				None,
@@ -1239,8 +1263,8 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
 
 		// Poke the crowdloan into `NewRaise`
-		assert_ok!(Crowdloan::poke(Origin::signed(1), ParaId::from(2000)));
-		assert_eq!(Crowdloan::new_raise(), vec![ParaId::from(2000)]);
+		assert_ok!(Crowdloan::poke(Origin::signed(1), AllyId::from(2000)));
+		assert_eq!(Crowdloan::new_raise(), vec![AllyId::from(2000)]);
 
 		// Beginning of ending block.
 		run_to_block(starting_block + 100);
@@ -1249,7 +1273,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start + 0,
 				lease_period_index_start + 1,
@@ -1261,7 +1285,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start + 1,
 				lease_period_index_start + 2,
@@ -1273,7 +1297,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start - 1,
 				lease_period_index_start + 0,
@@ -1285,7 +1309,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start + 0,
 				lease_period_index_start + 0,
@@ -1297,7 +1321,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start + 1,
 				lease_period_index_start + 1,
@@ -1309,7 +1333,7 @@ fn cant_bid_on_existing_lease_periods() {
 		assert_noop!(
 			Auctions::bid(
 				Origin::signed(crowdloan_account),
-				ParaId::from(2000),
+				AllyId::from(2000),
 				2,
 				lease_period_index_start - 1,
 				lease_period_index_start + 5,
@@ -1321,7 +1345,7 @@ fn cant_bid_on_existing_lease_periods() {
 		// Will work when not overlapping
 		assert_ok!(Auctions::bid(
 			Origin::signed(crowdloan_account),
-			ParaId::from(2000),
+			AllyId::from(2000),
 			2,
 			lease_period_index_start + 2,
 			lease_period_index_start + 3,

@@ -1,14 +1,14 @@
 [package]
 name = "bp-betanet"
-description = "Primitives of BetaNet runtime."
+description = "Primitives of Betanet runtime."
 version = "0.1.0"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-axia-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-smallvec = "1.6"
+axia-scale-codec = { version = "2.2.0", default-features = false, features = ["derive"] }
+smallvec = "1.7"
 
 # Bridge Dependencies
 bp-messages = { path = "../messages", default-features = false }
@@ -16,11 +16,11 @@ bp-axia-core = { path = "../axia-core", default-features = false }
 bp-runtime = { path = "../runtime", default-features = false }
 
 # Axlib Based Dependencies
-frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-api = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-version = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+frame-support = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-api = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-std = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-version = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 
 [features]
 default = ["std"]

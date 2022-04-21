@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::{future, pin_mut, select, FutureExt};
 use axia_test_service::*;
@@ -23,21 +23,23 @@ async fn ensure_test_service_build_blocks() {
 	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);
 	builder.init().expect("Sets up logger");
-
-	let mut alice = run_validator_node(
+	let alice_config = node_config(
+		|| {},
 		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Alice,
-		|| {},
 		Vec::new(),
-		None,
+		true,
 	);
-	let mut bob = run_validator_node(
+	let mut alice = run_validator_node(alice_config, None);
+
+	let bob_config = node_config(
+		|| {},
 		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Bob,
-		|| {},
 		vec![alice.addr.clone()],
-		None,
+		true,
 	);
+	let mut bob = run_validator_node(bob_config, None);
 
 	{
 		let t1 = future::join(alice.wait_for_blocks(3), bob.wait_for_blocks(3)).fuse();
@@ -52,7 +54,4 @@ async fn ensure_test_service_build_blocks() {
 			_ = t3 => panic!("service Bob failed"),
 		}
 	}
-
-	alice.task_manager.clean_shutdown().await;
-	bob.task_manager.clean_shutdown().await;
 }

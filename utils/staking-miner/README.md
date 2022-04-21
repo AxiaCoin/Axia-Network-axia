@@ -2,8 +2,8 @@
 
 Axlib chains validators compute a basic solution for the NPoS election. The optimization of the solution is computing-intensive and can be delegated to the `staking-miner`. The `staking-miner` does not act as validator and focuses solely on the optimization of the solution.
 
-The staking miner connects to a specified chain and keeps listening to new Signed phase of the [pallet-election-provider-multi-phase](https://crates.axiacoin.network/pallet_election_provider_multi_phase/index.html) in order to submit solutions to the NPoS election. When the correct time comes, it computes its solution and submit it to the chain.
-The default miner algorithm is [sequential-phragmen](https://crates.axiacoin.network/sp_npos_elections/phragmen/fn.seq_phragmen_core.html)] with a configurable number of balancing iterations that improve the score.
+The staking miner connects to a specified chain and keeps listening to new Signed phase of the [pallet-election-provider-multi-phase](https://crates.axia.io/pallet_election_provider_multi_phase/index.html) in order to submit solutions to the NPoS election. When the correct time comes, it computes its solution and submit it to the chain.
+The default miner algorithm is [sequential-phragmen](https://crates.axia.io/sp_npos_elections/phragmen/fn.seq_phragmen_core.html)] with a configurable number of balancing iterations that improve the score.
 
 Running the staking-miner requires passing the seed of a funded account in order to pay the fees for the transactions that will be sent. The same account's balance is used to reserve deposits as well. The best solution in each round is rewarded. All correct solutions will get their bond back. Any invalid solution will lose their bond.
 
@@ -14,7 +14,7 @@ staking-miner --help
 
 ## Building
 
-You can build from the root of the AXIA repository using:
+You can build from the root of the Axia repository using:
 ```
 cargo build --release --locked --package staking-miner
 ```
@@ -28,7 +28,7 @@ There are 2 options to build a staking-miner Docker image:
 ### Building the injected image
 
 First build the binary as documented [above](#building).
-You may then inject the binary into a Docker base image usingfrom the root of the AXIA repository:
+You may then inject the binary into a Docker base image usingfrom the root of the Axia repository:
 ```
 docker build -t staking-miner -f scripts/docker/staking-miner/staking-miner_injected.Dockerfile target/release
 ```
@@ -37,7 +37,7 @@ docker build -t staking-miner -f scripts/docker/staking-miner/staking-miner_inje
 
 Unlike the injected image that requires a Linux pre-built binary, this option does not requires a Linux host, nor Rust to be installed.
 The trade-off however is that it takes a little longer to build and this option is less ideal for CI tasks.
-You may build the multi-stage image the root of the AXIA repository with:
+You may build the multi-stage image the root of the Axia repository with:
 ```
 docker build -t staking-miner -f scripts/docker/staking-miner/staking-miner_builder.Dockerfile .
 ```
@@ -59,3 +59,10 @@ docker run --rm -it \
     -e URI=wss://your-node:9944 \
     staking-miner dry-run
 ```
+
+### Test locally
+
+1. Modify `EPOCH_DURATION_IN_SLOTS` and `SessionsPerEra` to force an election
+   more often than once per day.
+2. $ axia --chain axia-dev --tmp --alice --execution Native -lruntime=debug --offchain-worker=Always --ws-port 9999
+3. $ staking-miner --uri ws://localhost:9999 --seed //Alice monitor phrag-mms

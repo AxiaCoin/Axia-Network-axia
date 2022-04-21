@@ -1,15 +1,17 @@
 {
+	"Address": "WococoAddress",
+	"LookupSource": "WococoLookupSource",
 	"Fee": "WococoBalance",
 	"Balance": "WococoBalance",
 	"Hash": "WococoBlockHash",
 	"BlockHash": "WococoBlockHash",
 	"BlockNumber": "WococoBlockNumber",
-	"BridgedBlockHash": "BetaNetBlockHash",
-	"BridgedBlockNumber": "BetaNetBlockNumber",
-	"BridgedHeader": "BetaNetHeader",
+	"BridgedBlockHash": "BetanetBlockHash",
+	"BridgedBlockNumber": "BetanetBlockNumber",
+	"BridgedHeader": "BetanetHeader",
 	"Parameter": {
 		"_enum": {
-			"WococoToBetaNetConversionRate": "u128"
+			"WococoToBetanetConversionRate": "u128"
 		}
 	}
 }

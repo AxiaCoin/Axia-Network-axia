@@ -1,69 +1,69 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA CLI library.
+//! Axia CLI library.
 
+use clap::Parser;
 use sc_cli::{RuntimeVersion, AxlibCli};
-use structopt::StructOpt;
 
 /// Sub-commands supported by the collator.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Export the genesis state of the allychain.
-	#[structopt(name = "export-genesis-state")]
+	#[clap(name = "export-genesis-state")]
 	ExportGenesisState(ExportGenesisStateCommand),
 
 	/// Export the genesis wasm of the allychain.
-	#[structopt(name = "export-genesis-wasm")]
+	#[clap(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
 /// Command for exporting the genesis state of the allychain
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ExportGenesisStateCommand {}
 
 /// Command for exporting the genesis wasm file.
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ExportGenesisWasmCommand {}
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the allychain this collator collates for.
-	#[structopt(long)]
+	#[clap(long)]
 	pub allychain_id: Option<u32>,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Cli {
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub run: RunCmd,
 }
 
 impl AxlibCli for Cli {
 	fn impl_name() -> String {
-		"AXIA AXIA".into()
+		"Axia Axia".into()
 	}
 
 	fn impl_version() -> String {
@@ -79,7 +79,7 @@ impl AxlibCli for Cli {
 	}
 
 	fn support_url() -> String {
-		"https://github.com/axia/axia/issues/new".into()
+		"https://github.com/axiatech/axia/issues/new".into()
 	}
 
 	fn copyright_start_year() -> i32 {
@@ -100,7 +100,7 @@ impl AxlibCli for Cli {
 			"betanet" => Box::new(axia_service::chain_spec::betanet_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
-				Box::new(axia_service::BetaNetChainSpec::from_json_file(path)?)
+				Box::new(axia_service::BetanetChainSpec::from_json_file(path)?)
 			},
 		})
 	}

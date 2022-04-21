@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -21,6 +21,7 @@ use bp_runtime::Chain;
 use frame_support::{
 	dispatch::Dispatchable,
 	parameter_types,
+	unsigned::TransactionValidityError,
 	weights::{
 		constants::{BlockExecutionWeight, WEIGHT_PER_SECOND},
 		DispatchClass, Weight,
@@ -29,10 +30,11 @@ use frame_support::{
 };
 use frame_system::limits;
 use axia_scale_codec::Compact;
+use scale_info::{StaticTypeInfo, TypeInfo};
 use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	generic,
-	traits::{BlakeTwo256, IdentifyAccount, Verify},
+	traits::{BlakeTwo256, DispatchInfoOf, IdentifyAccount, Verify},
 	MultiAddress, MultiSignature, OpaqueExtrinsic,
 };
 use sp_std::prelude::Vec;
@@ -42,10 +44,10 @@ pub use frame_support::{weights::constants::ExtrinsicBaseWeight, Parameter};
 pub use sp_runtime::{traits::Convert, Perbill};
 
 /// Number of extra bytes (excluding size of storage value itself) of storage proof, built at
-/// AXIA-like chain. This mostly depends on number of entries in the storage trie.
+/// Axia-like chain. This mostly depends on number of entries in the storage trie.
 /// Some reserve is reserved to account future chain growth.
 ///
-/// To compute this value, we've synced AXIATEST chain blocks [0; 6545733] to see if there were
+/// To compute this value, we've synced AxiaTest chain blocks [0; 6545733] to see if there were
 /// any significant changes of the storage proof size (NO):
 ///
 /// - at block 3072 the storage proof size overhead was 579 bytes;
@@ -66,33 +68,34 @@ pub const EXTRA_STORAGE_PROOF_SIZE: u32 = 1024;
 /// All axia-like chains are using same crypto.
 pub const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = 32;
 
-/// All AXIA-like chains allow normal extrinsics to fill block up to 75%.
+/// All Axia-like chains allow normal extrinsics to fill block up to 75 percent.
 ///
-/// This is a copy-paste from the AXIA repo's `axia-runtime-common` crate.
+/// This is a copy-paste from the Axia repo's `axia-runtime-common` crate.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
-/// All AXIA-like chains allow 2 seconds of compute with a 6 second average block time.
+/// All Axia-like chains allow 2 seconds of compute with a 6-second average block time.
 ///
-/// This is a copy-paste from the AXIA repo's `axia-runtime-common` crate.
+/// This is a copy-paste from the Axia repo's `axia-runtime-common` crate.
 pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
-/// All AXIA-like chains assume that an on-initialize consumes 1% of the weight on average,
-/// hence a single extrinsic will not be allowed to consume more than `AvailableBlockRatio - 1%`.
+/// All Axia-like chains assume that an on-initialize consumes 1 percent of the weight on
+/// average, hence a single extrinsic will not be allowed to consume more than
+/// `AvailableBlockRatio - 1 percent`.
 ///
-/// This is a copy-paste from the AXIA repo's `axia-runtime-common` crate.
+/// This is a copy-paste from the Axia repo's `axia-runtime-common` crate.
 pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 
 parameter_types! {
-	/// All AXIA-like chains have maximal block size set to 5MB.
+	/// All Axia-like chains have maximal block size set to 5MB.
 	///
-	/// This is a copy-paste from the AXIA repo's `axia-runtime-common` crate.
+	/// This is a copy-paste from the Axia repo's `axia-runtime-common` crate.
 	pub BlockLength: limits::BlockLength = limits::BlockLength::max_with_normal_ratio(
 		5 * 1024 * 1024,
 		NORMAL_DISPATCH_RATIO,
 	);
-	/// All AXIA-like chains have the same block weights.
+	/// All Axia-like chains have the same block weights.
 	///
-	/// This is a copy-paste from the AXIA repo's `axia-runtime-common` crate.
+	/// This is a copy-paste from the Axia repo's `axia-runtime-common` crate.
 	pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
 		.base_block(BlockExecutionWeight::get())
 		.for_class(DispatchClass::all(), |weights| {
@@ -113,7 +116,8 @@ parameter_types! {
 		.build_or_panic();
 }
 
-/// Get the maximum weight (compute time) that a Normal extrinsic on the AXIA-like chain can use.
+/// Get the maximum weight (compute time) that a Normal extrinsic on the Axia-like chain can
+/// use.
 pub fn max_extrinsic_weight() -> Weight {
 	BlockWeights::get()
 		.get(DispatchClass::Normal)
@@ -121,12 +125,12 @@ pub fn max_extrinsic_weight() -> Weight {
 		.unwrap_or(Weight::MAX)
 }
 
-/// Get the maximum length in bytes that a Normal extrinsic on the AXIA-like chain requires.
+/// Get the maximum length in bytes that a Normal extrinsic on the Axia-like chain requires.
 pub fn max_extrinsic_size() -> u32 {
 	*BlockLength::get().max.get(DispatchClass::Normal)
 }
 
-// TODO [#78] may need to be updated after https://github.com/axia/axia-bridges-common/issues/78
+// TODO [#78] may need to be updated after https://github.com/axiatech/axia-bridges-common/issues/78
 /// Maximal number of messages in single delivery transaction.
 pub const MAX_MESSAGES_IN_DELIVERY_TRANSACTION: MessageNonce = 128;
 
@@ -137,6 +141,48 @@ pub const MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE: MessageNonce = 128;
 // finality delay on both chains + reward payout cost + messages throughput.
 /// Maximal number of unconfirmed messages at inbound lane.
 pub const MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE: MessageNonce = 8192;
+
+// One important thing about weight-related constants here is that actually we may have
+// different weights on different Axia-like chains. But now all deployments are
+// almost the same, so we're exporting constants from this crate.
+
+/// Maximal weight of single message delivery confirmation transaction on Axia-like chain.
+///
+/// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_delivery_proof`
+/// weight formula computation for the case when single message is confirmed. The result then must
+/// be rounded up to account possible future runtime upgrades.
+pub const MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT: Weight = 2_000_000_000;
+
+/// Increase of delivery transaction weight on Axia-like chain with every additional message
+/// byte.
+///
+/// This value is a result of
+/// `pallet_bridge_messages::WeightInfoExt::storage_proof_size_overhead(1)` call. The result then
+/// must be rounded up to account possible future runtime upgrades.
+pub const ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT: Weight = 25_000;
+
+/// Maximal number of bytes, included in the signed Axia-like transaction apart from the encoded
+/// call itself.
+///
+/// Can be computed by subtracting encoded call size from raw transaction size.
+pub const TX_EXTRA_BYTES: u32 = 256;
+
+/// Weight of single regular message delivery transaction on Axia-like chain.
+///
+/// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_proof_weight()` call
+/// for the case when single message of `pallet_bridge_messages::EXPECTED_DEFAULT_MESSAGE_LENGTH`
+/// bytes is delivered. The message must have dispatch weight set to zero. The result then must be
+/// rounded up to account possible future runtime upgrades.
+pub const DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT: Weight = 1_500_000_000;
+
+/// Weight of pay-dispatch-fee operation for inbound messages at Axia-like chain.
+///
+/// This value corresponds to the result of
+/// `pallet_bridge_messages::WeightInfoExt::pay_inbound_dispatch_fee_overhead()` call for your
+/// chain. Don't put too much reserve there, because it is used to **decrease**
+/// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery
+/// transactions cheaper.
+pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
 
 /// Re-export `time_units` to make usage easier.
 pub use time_units::*;
@@ -153,10 +199,10 @@ pub mod time_units {
 	pub const DAYS: BlockNumber = HOURS * 24;
 }
 
-/// Block number type used in AXIA-like chains.
+/// Block number type used in Axia-like chains.
 pub type BlockNumber = u32;
 
-/// Hash type used in AXIA-like chains.
+/// Hash type used in Axia-like chains.
 pub type Hash = <BlakeTwo256 as HasherT>::Out;
 
 /// Account Index (a.k.a. nonce).
@@ -165,55 +211,54 @@ pub type Index = u32;
 /// Hashing type.
 pub type Hashing = BlakeTwo256;
 
-/// The type of an object that can produce hashes on AXIA-like chains.
+/// The type of object that can produce hashes on Axia-like chains.
 pub type Hasher = BlakeTwo256;
 
-/// The header type used by AXIA-like chains.
+/// The header type used by Axia-like chains.
 pub type Header = generic::Header<BlockNumber, Hasher>;
 
-/// Signature type used by AXIA-like chains.
+/// Signature type used by Axia-like chains.
 pub type Signature = MultiSignature;
 
-/// Public key of account on AXIA-like chains.
+/// Public key of account on Axia-like chains.
 pub type AccountPublic = <Signature as Verify>::Signer;
 
-/// Id of account on AXIA-like chains.
+/// Id of account on Axia-like chains.
 pub type AccountId = <AccountPublic as IdentifyAccount>::AccountId;
 
-/// Index of a transaction on the AXIA-like chains.
+/// Address of account on Axia-like chains.
+pub type AccountAddress = MultiAddress<AccountId, ()>;
+
+/// Index of a transaction on the Axia-like chains.
 pub type Nonce = u32;
 
-/// Block type of AXIA-like chains.
+/// Block type of Axia-like chains.
 pub type Block = generic::Block<Header, OpaqueExtrinsic>;
 
-/// AXIA-like block signed with a Justification.
+/// Axia-like block signed with a Justification.
 pub type SignedBlock = generic::SignedBlock<Block>;
 
-/// The balance of an account on AXIA-like chain.
+/// The balance of an account on Axia-like chain.
 pub type Balance = u128;
 
 /// Unchecked Extrinsic type.
 pub type UncheckedExtrinsic<Call> =
-	generic::UncheckedExtrinsic<MultiAddress<AccountId, ()>, Call, Signature, SignedExtensions<Call>>;
+	generic::UncheckedExtrinsic<AccountAddress, Call, Signature, SignedExtensions<Call>>;
+
+/// Account address, used by the Axia-like chain.
+pub type Address = MultiAddress<AccountId, ()>;
 
 /// A type of the data encoded as part of the transaction.
-pub type SignedExtra = (
-	(),
-	(),
-	(),
-	sp_runtime::generic::Era,
-	Compact<Nonce>,
-	(),
-	Compact<Balance>,
-);
+pub type SignedExtra =
+	((), (), (), (), sp_runtime::generic::Era, Compact<Nonce>, (), Compact<Balance>);
 
 /// Parameters which are part of the payload used to produce transaction signature,
 /// but don't end up in the transaction itself (i.e. inherent part of the runtime).
-pub type AdditionalSigned = (u32, u32, Hash, Hash, (), (), ());
+pub type AdditionalSigned = ((), u32, u32, Hash, Hash, (), (), ());
 
 /// A simplified version of signed extensions meant for producing signed transactions
 /// and signed payload in the client code.
-#[derive(PartialEq, Eq, Clone, RuntimeDebug, scale_info::TypeInfo)]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo)]
 pub struct SignedExtensions<Call> {
 	encode_payload: SignedExtra,
 	additional_signed: AdditionalSigned,
@@ -227,7 +272,9 @@ impl<Call> axia_scale_codec::Encode for SignedExtensions<Call> {
 }
 
 impl<Call> axia_scale_codec::Decode for SignedExtensions<Call> {
-	fn decode<I: axia_scale_codec::Input>(_input: &mut I) -> Result<Self, axia_scale_codec::Error> {
+	fn decode<I: axia_scale_codec::Input>(
+		_input: &mut I,
+	) -> Result<Self, axia_scale_codec::Error> {
 		unimplemented!("SignedExtensions are never meant to be decoded, they are only used to create transaction");
 	}
 }
@@ -235,32 +282,46 @@ impl<Call> axia_scale_codec::Decode for SignedExtensions<Call> {
 impl<Call> SignedExtensions<Call> {
 	pub fn new(
 		version: sp_version::RuntimeVersion,
-		era: sp_runtime::generic::Era,
+		era: bp_runtime::TransactionEraOf<AxiaLike>,
 		genesis_hash: Hash,
 		nonce: Nonce,
 		tip: Balance,
 	) -> Self {
 		Self {
 			encode_payload: (
-				(),           // spec version
-				(),           // tx version
-				(),           // genesis
-				era,          // era
-				nonce.into(), // nonce (compact encoding)
-				(),           // Check weight
-				tip.into(),   // transaction payment / tip (compact encoding)
+				(),              // non-zero sender
+				(),              // spec version
+				(),              // tx version
+				(),              // genesis
+				era.frame_era(), // era
+				nonce.into(),    // nonce (compact encoding)
+				(),              // Check weight
+				tip.into(),      // transaction payment / tip (compact encoding)
 			),
 			additional_signed: (
+				(),
 				version.spec_version,
 				version.transaction_version,
 				genesis_hash,
-				genesis_hash,
+				era.signed_payload(genesis_hash),
 				(),
 				(),
 				(),
 			),
 			_data: Default::default(),
 		}
+	}
+}
+
+impl<Call> SignedExtensions<Call> {
+	/// Return signer nonce, used to craft transaction.
+	pub fn nonce(&self) -> Nonce {
+		self.encode_payload.5.into()
+	}
+
+	/// Return transaction tip.
+	pub fn tip(&self) -> Balance {
+		self.encode_payload.7.into()
 	}
 }
 
@@ -273,7 +334,7 @@ where
 		+ Clone
 		+ Eq
 		+ PartialEq
-		+ scale_info::StaticTypeInfo,
+		+ StaticTypeInfo,
 	Call: Dispatchable,
 {
 	const IDENTIFIER: &'static str = "Not needed.";
@@ -283,20 +344,35 @@ where
 	type AdditionalSigned = AdditionalSigned;
 	type Pre = ();
 
-	fn additional_signed(&self) -> Result<Self::AdditionalSigned, frame_support::unsigned::TransactionValidityError> {
+	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
 		Ok(self.additional_signed)
+	}
+
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		info: &DispatchInfoOf<Self::Call>,
+		len: usize,
+	) -> Result<Self::Pre, TransactionValidityError> {
+		Ok(self.validate(who, call, info, len).map(|_| ())?)
 	}
 }
 
-/// AXIA-like chain.
+/// Axia-like chain.
 #[derive(RuntimeDebug)]
-pub struct AXIALike;
+pub struct AxiaLike;
 
-impl Chain for AXIALike {
+impl Chain for AxiaLike {
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
 	type Hasher = Hasher;
 	type Header = Header;
+
+	type AccountId = AccountId;
+	type Balance = Balance;
+	type Index = Index;
+	type Signature = Signature;
 }
 
 /// Convert a 256-bit hash into an AccountId.
@@ -311,7 +387,7 @@ impl Convert<sp_core::H256, AccountId> for AccountIdConverter {
 /// Return a storage key for account data.
 ///
 /// This is based on FRAME storage-generation code from Axlib:
-/// https://github.com/axia-tech/axia-core/blob/c939ceba381b6313462d47334f775e128ea4e95d/frame/support/src/storage/generator/map.rs#L74
+/// [link](https://github.com/axiatech/axlib/blob/c939ceba381b6313462d47334f775e128ea4e95d/frame/support/src/storage/generator/map.rs#L74)
 /// The equivalent command to invoke in case full `Runtime` is known is this:
 /// `let key = frame_system::Account::<Runtime>::storage_map_final_key(&account_id);`
 pub fn account_info_storage_key(id: &AccountId) -> Vec<u8> {
@@ -319,7 +395,9 @@ pub fn account_info_storage_key(id: &AccountId) -> Vec<u8> {
 	let storage_prefix_hashed = Twox128::hash(b"Account");
 	let key_hashed = axia_scale_codec::Encode::using_encoded(id, Blake2_128Concat::hash);
 
-	let mut final_key = Vec::with_capacity(module_prefix_hashed.len() + storage_prefix_hashed.len() + key_hashed.len());
+	let mut final_key = Vec::with_capacity(
+		module_prefix_hashed.len() + storage_prefix_hashed.len() + key_hashed.len(),
+	);
 
 	final_key.extend_from_slice(&module_prefix_hashed[..]);
 	final_key.extend_from_slice(&storage_prefix_hashed[..]);
@@ -331,14 +409,16 @@ pub fn account_info_storage_key(id: &AccountId) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_runtime::codec::Encode;
+	use axia_scale_codec::Decode;
+	use sp_runtime::{codec::Encode, traits::TrailingZeroInput};
 
 	#[test]
 	fn maximal_encoded_account_id_size_is_correct() {
-		let actual_size = AccountId::default().encode().len();
+		let actual_size =
+			AccountId::decode(&mut TrailingZeroInput::new(&[])).unwrap().encode().len();
 		assert!(
 			actual_size <= MAXIMAL_ENCODED_ACCOUNT_ID_SIZE as usize,
-			"Actual size of encoded account id for AXIA-like chains ({}) is larger than expected {}",
+			"Actual size of encoded account id for Axia-like chains ({}) is larger than expected {}",
 			actual_size,
 			MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
 		);
@@ -347,8 +427,8 @@ mod tests {
 	#[test]
 	fn should_generate_storage_key() {
 		let acc = [
-			1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-			30, 31, 32,
+			1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+			25, 26, 27, 28, 29, 30, 31, 32,
 		]
 		.into();
 		let key = account_info_storage_key(&acc);

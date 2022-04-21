@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::{channel::oneshot, prelude::Future};
 use thiserror::Error;
@@ -92,6 +92,20 @@ pub enum RequestError {
 	/// Response got canceled by networking.
 	#[error("Response channel got canceled")]
 	Canceled(#[source] oneshot::Canceled),
+}
+
+impl RequestError {
+	/// Whether the error represents some kind of timeout condition.
+	pub fn is_timed_out(&self) -> bool {
+		match self {
+			Self::Canceled(_) |
+			Self::NetworkError(network::RequestFailure::Obsolete) |
+			Self::NetworkError(network::RequestFailure::Network(
+				network::OutboundFailure::Timeout,
+			)) => true,
+			_ => false,
+		}
+	}
 }
 
 /// A request to be sent to the network bridge, including a sender for sending responses/failures.

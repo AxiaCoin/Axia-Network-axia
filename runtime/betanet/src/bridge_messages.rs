@@ -1,20 +1,20 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Over-bridge messaging support for BetaNet <> Wococo bridge.
+//! Over-bridge messaging support for Betanet <> Wococo bridge.
 
 pub use self::{at_betanet::*, at_wococo::*};
 
@@ -39,62 +39,64 @@ use frame_support::{
 };
 use sp_std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive};
 
+use betanet_runtime_constants::fee::WeightToFee;
+
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
 	bp_betanet::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
-/// Maximal weight of single message delivery confirmation transaction on BetaNet/Wococo chain.
+/// Maximal weight of single message delivery confirmation transaction on Betanet/Wococo chain.
 ///
 /// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_delivery_proof` weight formula
 /// computation for the case when single message is confirmed. The result then must be rounded up to account
 /// possible future runtime upgrades.
 const MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT: Weight = 2_000_000_000;
-/// Increase of delivery transaction weight on BetaNet/Wococo chain with every additional message byte.
+/// Increase of delivery transaction weight on Betanet/Wococo chain with every additional message byte.
 ///
 /// This value is a result of `pallet_bridge_messages::WeightInfoExt::storage_proof_size_overhead(1)` call. The
 /// result then must be rounded up to account possible future runtime upgrades.
 const ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT: Weight = 25_000;
-/// Weight of single regular message delivery transaction on BetaNet/Wococo chain.
+/// Weight of single regular message delivery transaction on Betanet/Wococo chain.
 ///
 /// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_proof_weight()` call
 /// for the case when single message of `pallet_bridge_messages::EXPECTED_DEFAULT_MESSAGE_LENGTH` bytes is delivered.
 /// The message must have dispatch weight set to zero. The result then must be rounded up to account
 /// possible future runtime upgrades.
 const DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT: Weight = 1_500_000_000;
-/// Weight of pay-dispatch-fee operation for inbound messages at BetaNet/Wococo chain.
+/// Weight of pay-dispatch-fee operation for inbound messages at Betanet/Wococo chain.
 ///
 /// This value corresponds to the result of `pallet_bridge_messages::WeightInfoExt::pay_inbound_dispatch_fee_overhead()`
 /// call for your chain. Don't put too much reserve there, because it is used to **decrease**
 /// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery transactions cheaper.
 const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
-/// Number of bytes, included in the signed BetaNet/Wococo transaction apart from the encoded call itself.
+/// Number of bytes, included in the signed Betanet/Wococo transaction apart from the encoded call itself.
 ///
 /// Can be computed by subtracting encoded call size from raw transaction size.
 const TX_EXTRA_BYTES: u32 = 130;
 
-/// BetaNet chain as it is seen at BetaNet.
-pub type BetaNetAtBetaNet =
-	BetaNetLikeChain<AtBetaNetWithWococoMessageBridge, crate::BetaNetGrandpaInstance>;
+/// Betanet chain as it is seen at Betanet.
+pub type BetanetAtBetanet =
+	BetanetLikeChain<AtBetanetWithWococoMessageBridge, crate::BetanetGrandpaInstance>;
 
-/// BetaNet chain as it is seen at Wococo.
-pub type BetaNetAtWococo =
-	BetaNetLikeChain<AtWococoWithBetaNetMessageBridge, crate::BetaNetGrandpaInstance>;
+/// Betanet chain as it is seen at Wococo.
+pub type BetanetAtWococo =
+	BetanetLikeChain<AtWococoWithBetanetMessageBridge, crate::BetanetGrandpaInstance>;
 
 /// Wococo chain as it is seen at Wococo.
 pub type WococoAtWococo =
-	BetaNetLikeChain<AtWococoWithBetaNetMessageBridge, crate::WococoGrandpaInstance>;
+	BetanetLikeChain<AtWococoWithBetanetMessageBridge, crate::WococoGrandpaInstance>;
 
-/// Wococo chain as it is seen at BetaNet.
-pub type WococoAtBetaNet =
-	BetaNetLikeChain<AtBetaNetWithWococoMessageBridge, crate::WococoGrandpaInstance>;
+/// Wococo chain as it is seen at Betanet.
+pub type WococoAtBetanet =
+	BetanetLikeChain<AtBetanetWithWococoMessageBridge, crate::WococoGrandpaInstance>;
 
-/// BetaNet/Wococo chain from message lane point of view.
+/// Betanet/Wococo chain from message lane point of view.
 #[derive(RuntimeDebug, Clone, Copy)]
-pub struct BetaNetLikeChain<B, GI> {
+pub struct BetanetLikeChain<B, GI> {
 	_bridge_definition: PhantomData<B>,
 	_at_this_chain_grandpa_pallet_instance: PhantomData<GI>,
 }
 
-impl<B, GI> ChainWithMessages for BetaNetLikeChain<B, GI> {
+impl<B, GI> ChainWithMessages for BetanetLikeChain<B, GI> {
 	type Hash = crate::Hash;
 	type AccountId = crate::AccountId;
 	type Signer = primitives::v1::AccountPublic;
@@ -103,7 +105,7 @@ impl<B, GI> ChainWithMessages for BetaNetLikeChain<B, GI> {
 	type Balance = crate::Balance;
 }
 
-impl<B, GI> ThisChainWithMessages for BetaNetLikeChain<B, GI> {
+impl<B, GI> ThisChainWithMessages for BetanetLikeChain<B, GI> {
 	type Call = crate::Call;
 
 	fn is_outbound_lane_enabled(lane: &LaneId) -> bool {
@@ -138,13 +140,13 @@ impl<B, GI> ThisChainWithMessages for BetaNetLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
-			|weight| crate::constants::fee::WeightToFee::calc(&weight),
+			|weight| WeightToFee::calc(&weight),
 			transaction,
 		)
 	}
 }
 
-impl<B, GI> BridgedChainWithMessages for BetaNetLikeChain<B, GI> {
+impl<B, GI> BridgedChainWithMessages for BetanetLikeChain<B, GI> {
 	fn maximal_extrinsic_size() -> u32 {
 		max_extrinsic_size()
 	}
@@ -154,7 +156,7 @@ impl<B, GI> BridgedChainWithMessages for BetaNetLikeChain<B, GI> {
 		let upper_limit =
 			messages_target::maximal_incoming_message_dispatch_weight(max_extrinsic_weight());
 
-		// we're charging for payload bytes in `With(Wococo | BetaNet)MessageBridge::transaction_payment` function
+		// we're charging for payload bytes in `With(Wococo | Betanet)MessageBridge::transaction_payment` function
 		//
 		// this bridge may be used to deliver all kind of messages, so we're not making any assumptions about
 		// minimal dispatch weight here
@@ -195,20 +197,20 @@ impl<B, GI> BridgedChainWithMessages for BetaNetLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
-			|weight| crate::constants::fee::WeightToFee::calc(&weight),
+			|weight| WeightToFee::calc(&weight),
 			transaction,
 		)
 	}
 }
 
 impl<B, GI> TargetHeaderChain<messages_source::FromThisChainMessagePayload<B>, crate::AccountId>
-	for BetaNetLikeChain<B, GI>
+	for BetanetLikeChain<B, GI>
 where
 	B: MessageBridge,
 	B::ThisChain: ChainWithMessages<AccountId = crate::AccountId>,
 	B::BridgedChain: ChainWithMessages<Hash = crate::Hash>,
 	GI: 'static,
-	crate::Runtime: pallet_bridge_grandpa::Config<GI> + pallet_bridge_messages::Config<B::BridgedMessagesInstance>,
+	crate::Runtime: pallet_bridge_grandpa::Config<GI>,
 	<<crate::Runtime as pallet_bridge_grandpa::Config<GI>>::BridgedChain as bp_runtime::Chain>::Hash: From<crate::Hash>,
 {
 	type Error = &'static str;
@@ -225,12 +227,12 @@ where
 	}
 }
 
-impl<B, GI> SourceHeaderChain<crate::Balance> for BetaNetLikeChain<B, GI>
+impl<B, GI> SourceHeaderChain<crate::Balance> for BetanetLikeChain<B, GI>
 where
 	B: MessageBridge,
 	B::BridgedChain: ChainWithMessages<Balance = crate::Balance, Hash = crate::Hash>,
 	GI: 'static,
-	crate::Runtime: pallet_bridge_grandpa::Config<GI> + pallet_bridge_messages::Config<B::BridgedMessagesInstance>,
+	crate::Runtime: pallet_bridge_grandpa::Config<GI>,
 	<<crate::Runtime as pallet_bridge_grandpa::Config<GI>>::BridgedChain as bp_runtime::Chain>::Hash: From<crate::Hash>,
 {
 	type Error = &'static str;
@@ -240,8 +242,22 @@ where
 		proof: Self::MessagesProof,
 		messages_count: u32,
 	) -> Result<ProvedMessages<Message<crate::Balance>>, Self::Error> {
-		messages_target::verify_messages_proof::<B, crate::Runtime, GI>(proof, messages_count)
+		messages_target::verify_messages_proof::<B, crate::Runtime, GI>(proof, messages_count).and_then(verify_inbound_messages_lane)
 	}
+}
+
+/// Error that happens when we are receiving incoming message via unexpected lane.
+const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disabled.";
+
+/// Verify that lanes of inbound messages are enabled.
+fn verify_inbound_messages_lane(
+	messages: ProvedMessages<Message<crate::Balance>>,
+) -> Result<ProvedMessages<Message<crate::Balance>>, &'static str> {
+	let allowed_incoming_lanes = [[0, 0, 0, 0]];
+	if messages.keys().any(|lane_id| !allowed_incoming_lanes.contains(lane_id)) {
+		return Err(INBOUND_LANE_DISABLED)
+	}
+	Ok(messages)
 }
 
 /// The cost of delivery confirmation transaction.
@@ -249,28 +265,29 @@ pub struct GetDeliveryConfirmationTransactionFee;
 
 impl Get<crate::Balance> for GetDeliveryConfirmationTransactionFee {
 	fn get() -> crate::Balance {
-		<BetaNetAtBetaNet as ThisChainWithMessages>::transaction_payment(
-			BetaNetAtBetaNet::estimate_delivery_confirmation_transaction(),
+		<BetanetAtBetanet as ThisChainWithMessages>::transaction_payment(
+			BetanetAtBetanet::estimate_delivery_confirmation_transaction(),
 		)
 	}
 }
 
-/// This module contains definitions that are used by the messages pallet instance, "deployed" at BetaNet.
+/// This module contains definitions that are used by the messages pallet instance, "deployed" at Betanet.
 mod at_betanet {
 	use super::*;
 
-	/// Message bridge that is "deployed" at BetaNet chain and connecting it to Wococo chain.
+	/// Message bridge that is "deployed" at Betanet chain and connecting it to Wococo chain.
 	#[derive(RuntimeDebug, Clone, Copy)]
-	pub struct AtBetaNetWithWococoMessageBridge;
+	pub struct AtBetanetWithWococoMessageBridge;
 
-	impl MessageBridge for AtBetaNetWithWococoMessageBridge {
+	impl MessageBridge for AtBetanetWithWococoMessageBridge {
 		const THIS_CHAIN_ID: ChainId = BETANET_CHAIN_ID;
 		const BRIDGED_CHAIN_ID: ChainId = WOCOCO_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
+		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
+			bp_wococo::WITH_BETANET_MESSAGES_PALLET_NAME;
 
-		type ThisChain = BetaNetAtBetaNet;
-		type BridgedChain = WococoAtBetaNet;
-		type BridgedMessagesInstance = crate::AtWococoWithBetaNetMessagesInstance;
+		type ThisChain = BetanetAtBetanet;
+		type BridgedChain = WococoAtBetanet;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_wococo::Balance,
@@ -279,28 +296,28 @@ mod at_betanet {
 		}
 	}
 
-	/// Message payload for BetaNet -> Wococo messages as it is seen at the BetaNet.
+	/// Message payload for Betanet -> Wococo messages as it is seen at the Betanet.
 	pub type ToWococoMessagePayload =
-		messages_source::FromThisChainMessagePayload<AtBetaNetWithWococoMessageBridge>;
+		messages_source::FromThisChainMessagePayload<AtBetanetWithWococoMessageBridge>;
 
-	/// Message verifier for BetaNet -> Wococo messages at BetaNet.
+	/// Message verifier for Betanet -> Wococo messages at Betanet.
 	pub type ToWococoMessageVerifier =
-		messages_source::FromThisChainMessageVerifier<AtBetaNetWithWococoMessageBridge>;
+		messages_source::FromThisChainMessageVerifier<AtBetanetWithWococoMessageBridge>;
 
-	/// Message payload for Wococo -> BetaNet messages as it is seen at BetaNet.
+	/// Message payload for Wococo -> Betanet messages as it is seen at Betanet.
 	pub type FromWococoMessagePayload =
-		messages_target::FromBridgedChainMessagePayload<AtBetaNetWithWococoMessageBridge>;
+		messages_target::FromBridgedChainMessagePayload<AtBetanetWithWococoMessageBridge>;
 
-	/// Encoded BetaNet Call as it comes from Wococo.
+	/// Encoded Betanet Call as it comes from Wococo.
 	pub type FromWococoEncodedCall =
 		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
-	/// Call-dispatch based message dispatch for Wococo -> BetaNet messages.
+	/// Call-dispatch based message dispatch for Wococo -> Betanet messages.
 	pub type FromWococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
-		AtBetaNetWithWococoMessageBridge,
+		AtBetanetWithWococoMessageBridge,
 		crate::Runtime,
 		pallet_balances::Pallet<crate::Runtime>,
-		crate::AtBetaNetFromWococoMessagesDispatch,
+		crate::AtBetanetFromWococoMessagesDispatch,
 	>;
 }
 
@@ -308,18 +325,19 @@ mod at_betanet {
 mod at_wococo {
 	use super::*;
 
-	/// Message bridge that is "deployed" at Wococo chain and connecting it to BetaNet chain.
+	/// Message bridge that is "deployed" at Wococo chain and connecting it to Betanet chain.
 	#[derive(RuntimeDebug, Clone, Copy)]
-	pub struct AtWococoWithBetaNetMessageBridge;
+	pub struct AtWococoWithBetanetMessageBridge;
 
-	impl MessageBridge for AtWococoWithBetaNetMessageBridge {
+	impl MessageBridge for AtWococoWithBetanetMessageBridge {
 		const THIS_CHAIN_ID: ChainId = WOCOCO_CHAIN_ID;
 		const BRIDGED_CHAIN_ID: ChainId = BETANET_CHAIN_ID;
 		const RELAYER_FEE_PERCENT: u32 = 10;
+		const BRIDGED_MESSAGES_PALLET_NAME: &'static str =
+			bp_betanet::WITH_WOCOCO_MESSAGES_PALLET_NAME;
 
 		type ThisChain = WococoAtWococo;
-		type BridgedChain = BetaNetAtWococo;
-		type BridgedMessagesInstance = crate::AtBetaNetWithWococoMessagesInstance;
+		type BridgedChain = BetanetAtWococo;
 
 		fn bridged_balance_to_this_balance(
 			bridged_balance: bp_betanet::Balance,
@@ -328,47 +346,49 @@ mod at_wococo {
 		}
 	}
 
-	/// Message payload for Wococo -> BetaNet messages as it is seen at the Wococo.
-	pub type ToBetaNetMessagePayload =
-		messages_source::FromThisChainMessagePayload<AtWococoWithBetaNetMessageBridge>;
+	/// Message payload for Wococo -> Betanet messages as it is seen at the Wococo.
+	pub type ToBetanetMessagePayload =
+		messages_source::FromThisChainMessagePayload<AtWococoWithBetanetMessageBridge>;
 
-	/// Message verifier for Wococo -> BetaNet messages at Wococo.
-	pub type ToBetaNetMessageVerifier =
-		messages_source::FromThisChainMessageVerifier<AtWococoWithBetaNetMessageBridge>;
+	/// Message verifier for Wococo -> Betanet messages at Wococo.
+	pub type ToBetanetMessageVerifier =
+		messages_source::FromThisChainMessageVerifier<AtWococoWithBetanetMessageBridge>;
 
-	/// Message payload for BetaNet -> Wococo messages as it is seen at Wococo.
-	pub type FromBetaNetMessagePayload =
-		messages_target::FromBridgedChainMessagePayload<AtWococoWithBetaNetMessageBridge>;
+	/// Message payload for Betanet -> Wococo messages as it is seen at Wococo.
+	pub type FromBetanetMessagePayload =
+		messages_target::FromBridgedChainMessagePayload<AtWococoWithBetanetMessageBridge>;
 
-	/// Encoded Wococo Call as it comes from BetaNet.
-	pub type FromBetaNetEncodedCall =
+	/// Encoded Wococo Call as it comes from Betanet.
+	pub type FromBetanetEncodedCall =
 		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
-	/// Call-dispatch based message dispatch for BetaNet -> Wococo messages.
-	pub type FromBetaNetMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
-		AtWococoWithBetaNetMessageBridge,
+	/// Call-dispatch based message dispatch for Betanet -> Wococo messages.
+	pub type FromBetanetMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
+		AtWococoWithBetanetMessageBridge,
 		crate::Runtime,
 		pallet_balances::Pallet<crate::Runtime>,
-		crate::AtWococoFromBetaNetMessagesDispatch,
+		crate::AtWococoFromBetanetMessagesDispatch,
 	>;
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
 	use bridge_runtime_common::messages;
-	use axia_scale_codec::Encode;
+	use axia_scale_codec::{Decode, Encode};
+	use sp_runtime::traits::TrailingZeroInput;
 
 	#[test]
 	fn ensure_betanet_messages_weights_are_correct() {
 		// **NOTE**: the main purpose of this test is to be sure that any message that is sumbitted
-		// to (any) inbound lane in BetaNet<>Wococo bridge can be delivered to the bridged chain.
+		// to (any) inbound lane in Betanet<>Wococo bridge can be delivered to the bridged chain.
 		// Since we deal with testnets here, in case of failure + urgency:
 		//
 		// 1) ping bridges team about this failure (see the CODEOWNERS file if you're unsure who to ping);
 		// 2) comment/#[ignore] the test.
 
-		// we don't have any knowledge of messages-at-BetaNet weights, so we'll be using
+		// we don't have any knowledge of messages-at-Betanet weights, so we'll be using
 		// weights of one of our testnets, which should be accurate enough
 		type Weights = pallet_bridge_messages::weights::RialtoWeight<crate::Runtime>;
 
@@ -377,6 +397,7 @@ mod tests {
 			ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT,
 			MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT,
 			PAY_INBOUND_DISPATCH_FEE_WEIGHT,
+			crate::RocksDbWeight::get(),
 		);
 
 		let max_incoming_message_proof_size = bp_betanet::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
@@ -404,19 +425,21 @@ mod tests {
 			max_incoming_inbound_lane_data_proof_size,
 			bp_betanet::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE,
 			bp_betanet::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE,
+			crate::RocksDbWeight::get(),
 		);
 	}
 
 	#[test]
 	fn ensure_betanet_tx_extra_bytes_constant_is_correct() {
 		// **NOTE**: this test checks that we're computing transaction fee (for bridged chain, which, in
-		// case of BetaNet<>Wococo, means any chain) on-chain properly. If this assert fails:
+		// case of Betanet<>Wococo, means any chain) on-chain properly. If this assert fails:
 		//
 		// 1) just fix the `TX_EXTRA_BYTES` constant to actual (or sightly rounded up) value;
 		// 2) (only if it has changed significantly (> x2 times)) ping the bridges team (see the CODEOWNERS
 		//    file if you're unsure who to ping)
 
 		let signed_extra: crate::SignedExtra = (
+			frame_system::CheckNonZeroSender::new(),
 			frame_system::CheckSpecVersion::new(),
 			frame_system::CheckTxVersion::new(),
 			frame_system::CheckGenesis::new(),
@@ -430,14 +453,52 @@ mod tests {
 				primitives::v1::Balance::MAX,
 			),
 		);
-		let extra_bytes_in_transaction = crate::Address::default().encoded_size() +
-			crate::Signature::default().encoded_size() +
-			signed_extra.encoded_size();
+		let mut zeroes = TrailingZeroInput::zeroes();
+		let extra_bytes_in_transaction = signed_extra.encoded_size() +
+			crate::Address::decode(&mut zeroes).unwrap().encoded_size() +
+			crate::Signature::decode(&mut zeroes).unwrap().encoded_size();
 		assert!(
 			TX_EXTRA_BYTES as usize >= extra_bytes_in_transaction,
-			"Hardcoded number of extra bytes in BetaNet transaction {} is lower than actual value: {}",
+			"Hardcoded number of extra bytes in Betanet transaction {} is lower than actual value: {}",
 			TX_EXTRA_BYTES,
 			extra_bytes_in_transaction,
 		);
+	}
+
+	fn proved_messages(lane_id: LaneId) -> ProvedMessages<Message<crate::Balance>> {
+		vec![(
+			lane_id,
+			ProvedLaneMessages {
+				lane_state: None,
+				messages: vec![Message {
+					key: MessageKey { lane_id, nonce: 0 },
+					data: MessageData { payload: vec![], fee: 0 },
+				}],
+			},
+		)]
+		.into_iter()
+		.collect()
+	}
+
+	#[test]
+	fn verify_inbound_messages_lane_succeeds() {
+		assert_eq!(
+			verify_inbound_messages_lane(proved_messages([0, 0, 0, 0])),
+			Ok(proved_messages([0, 0, 0, 0])),
+		);
+	}
+
+	#[test]
+	fn verify_inbound_messages_lane_fails() {
+		assert_eq!(
+			verify_inbound_messages_lane(proved_messages([0, 0, 0, 1])),
+			Err(INBOUND_LANE_DISABLED),
+		);
+
+		let proved_messages = proved_messages([0, 0, 0, 0])
+			.into_iter()
+			.chain(proved_messages([0, 0, 0, 1]))
+			.collect();
+		assert_eq!(verify_inbound_messages_lane(proved_messages), Err(INBOUND_LANE_DISABLED),);
 	}
 }

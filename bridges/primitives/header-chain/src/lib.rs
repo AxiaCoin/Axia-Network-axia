@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Defines traits which represent a common interface for Axlib pallets which want to
 //! incorporate bridge functionality.
@@ -20,24 +20,21 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Codec, Decode, Encode, EncodeLike};
-use core::clone::Clone;
-use core::cmp::Eq;
-use core::default::Default;
-use core::fmt::Debug;
+use core::{clone::Clone, cmp::Eq, default::Default, fmt::Debug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_finality_grandpa::{AuthorityList, ConsensusLog, SetId, GRANDPA_ENGINE_ID};
-use sp_runtime::RuntimeDebug;
-use sp_runtime::{generic::OpaqueDigestItemId, traits::Header as HeaderT};
+use sp_runtime::{generic::OpaqueDigestItemId, traits::Header as HeaderT, RuntimeDebug};
+use sp_std::boxed::Box;
 
 pub mod justification;
 
 /// A type that can be used as a parameter in a dispatchable function.
 ///
 /// When using `decl_module` all arguments for call functions must implement this trait.
-pub trait Parameter: Codec + EncodeLike + Clone + Eq + Debug {}
-impl<T> Parameter for T where T: Codec + EncodeLike + Clone + Eq + Debug {}
+pub trait Parameter: Codec + EncodeLike + Clone + Eq + Debug + TypeInfo {}
+impl<T> Parameter for T where T: Codec + EncodeLike + Clone + Eq + Debug + TypeInfo {}
 
 /// A GRANDPA Authority List and ID.
 #[derive(Default, Encode, Decode, RuntimeDebug, PartialEq, Clone, TypeInfo)]
@@ -63,7 +60,7 @@ impl AuthoritySet {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct InitializationData<H: HeaderT> {
 	/// The header from which we should start syncing.
-	pub header: H,
+	pub header: Box<H>,
 	/// The initial authorities of the pallet.
 	pub authority_list: AuthorityList,
 	/// The ID of the initial authority set.
@@ -82,7 +79,9 @@ pub trait InclusionProofVerifier {
 	/// Verify that transaction is a part of given block.
 	///
 	/// Returns Some(transaction) if proof is valid and None otherwise.
-	fn verify_transaction_inclusion_proof(proof: &Self::TransactionInclusionProof) -> Option<Self::Transaction>;
+	fn verify_transaction_inclusion_proof(
+		proof: &Self::TransactionInclusionProof,
+	) -> Option<Self::Transaction>;
 }
 
 /// A trait for pallets which want to keep track of finalized headers from a bridged chain.

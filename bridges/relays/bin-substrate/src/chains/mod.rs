@@ -1,23 +1,27 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Chain-specific relayer configuration.
 
+pub mod axctest_headers_to_axia;
+pub mod axctest_messages_to_axia;
 pub mod millau_headers_to_rialto;
 pub mod millau_messages_to_rialto;
+pub mod axia_headers_to_axctest;
+pub mod axia_messages_to_axctest;
 pub mod rialto_headers_to_millau;
 pub mod rialto_messages_to_millau;
 pub mod betanet_headers_to_wococo;
@@ -26,45 +30,25 @@ pub mod alphanet_headers_to_millau;
 pub mod wococo_headers_to_betanet;
 pub mod wococo_messages_to_betanet;
 
+mod axctest;
 mod millau;
+mod axia;
 mod rialto;
+mod rialto_allychain;
 mod betanet;
 mod alphanet;
 mod wococo;
 
-use relay_utils::metrics::{FloatJsonValueMetric, MetricsParams};
+use relay_utils::metrics::{MetricsParams, StandaloneMetric};
 
-pub(crate) fn add_axia_axiatest_price_metrics<T: finality_relay::FinalitySyncPipeline>(
+pub(crate) fn add_axia_axctest_price_metrics<T: finality_relay::FinalitySyncPipeline>(
 	params: MetricsParams,
 ) -> anyhow::Result<MetricsParams> {
-	Ok(
-		relay_utils::relay_metrics(Some(finality_relay::metrics_prefix::<T>()), params)
-			// AXIA/AXIATEST prices are added as metrics here, because atm we don't have AXIA <-> AXIATEST
-			// relays, but we want to test metrics/dashboards in advance
-			.standalone_metric(|registry, prefix| {
-				FloatJsonValueMetric::new(
-					registry,
-					prefix,
-					"https://api.coingecko.com/api/v3/simple/price?ids=AXIA&vs_currencies=btc".into(),
-					"$.axia.btc".into(),
-					"axia_to_base_conversion_rate".into(),
-					"Rate used to convert from AXC to some BASE tokens".into(),
-				)
-			})
-			.map_err(|e| anyhow::format_err!("{}", e))?
-			.standalone_metric(|registry, prefix| {
-				FloatJsonValueMetric::new(
-					registry,
-					prefix,
-					"https://api.coingecko.com/api/v3/simple/price?ids=AXIATEST&vs_currencies=btc".into(),
-					"$.axiatest.btc".into(),
-					"axiatest_to_base_conversion_rate".into(),
-					"Rate used to convert from AXCT to some BASE tokens".into(),
-				)
-			})
-			.map_err(|e| anyhow::format_err!("{}", e))?
-			.into_params(),
-	)
+	axlib_relay_helper::helpers::token_price_metric(axia::TOKEN_ID)?
+		.register_and_spawn(&params.registry)?;
+	axlib_relay_helper::helpers::token_price_metric(axctest::TOKEN_ID)?
+		.register_and_spawn(&params.registry)?;
+	Ok(params)
 }
 
 #[cfg(test)]
@@ -75,7 +59,7 @@ mod tests {
 	use frame_support::dispatch::GetDispatchInfo;
 	use relay_millau_client::Millau;
 	use relay_rialto_client::Rialto;
-	use relay_axlib_client::TransactionSignScheme;
+	use relay_axlib_client::{TransactionSignScheme, UnsignedTransaction};
 	use sp_core::Pair;
 	use sp_runtime::traits::{IdentifyAccount, Verify};
 
@@ -83,7 +67,8 @@ mod tests {
 	fn millau_signature_is_valid_on_rialto() {
 		let millau_sign = relay_millau_client::SigningParams::from_string("//Dave", None).unwrap();
 
-		let call = rialto_runtime::Call::System(rialto_runtime::SystemCall::remark(vec![]));
+		let call =
+			rialto_runtime::Call::System(rialto_runtime::SystemCall::remark { remark: vec![] });
 
 		let millau_public: bp_millau::AccountSigner = millau_sign.public().into();
 		let millau_account_id: bp_millau::AccountId = millau_public.into_account();
@@ -94,7 +79,8 @@ mod tests {
 			rialto_runtime::VERSION.spec_version,
 		);
 
-		let rialto_signer = relay_rialto_client::SigningParams::from_string("//Dave", None).unwrap();
+		let rialto_signer =
+			relay_rialto_client::SigningParams::from_string("//Dave", None).unwrap();
 		let signature = rialto_signer.sign(&digest);
 
 		assert!(signature.verify(&digest[..], &rialto_signer.public()));
@@ -104,7 +90,8 @@ mod tests {
 	fn rialto_signature_is_valid_on_millau() {
 		let rialto_sign = relay_rialto_client::SigningParams::from_string("//Dave", None).unwrap();
 
-		let call = millau_runtime::Call::System(millau_runtime::SystemCall::remark(vec![]));
+		let call =
+			millau_runtime::Call::System(millau_runtime::SystemCall::remark { remark: vec![] });
 
 		let rialto_public: bp_rialto::AccountSigner = rialto_sign.public().into();
 		let rialto_account_id: bp_rialto::AccountId = rialto_public.into_account();
@@ -115,7 +102,8 @@ mod tests {
 			millau_runtime::VERSION.spec_version,
 		);
 
-		let millau_signer = relay_millau_client::SigningParams::from_string("//Dave", None).unwrap();
+		let millau_signer =
+			relay_millau_client::SigningParams::from_string("//Dave", None).unwrap();
 		let signature = millau_signer.sign(&digest);
 
 		assert!(signature.verify(&digest[..], &millau_signer.public()));
@@ -130,22 +118,27 @@ mod tests {
 			bp_millau::max_extrinsic_size(),
 		);
 
-		let call: millau_runtime::Call = millau_runtime::SystemCall::remark(vec![42; maximal_remark_size as _]).into();
+		let call: millau_runtime::Call =
+			millau_runtime::SystemCall::remark { remark: vec![42; maximal_remark_size as _] }
+				.into();
 		let payload = send_message::message_payload(
 			Default::default(),
 			call.get_dispatch_info().weight,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert_eq!(Millau::verify_message(&payload), Ok(()));
 
 		let call: millau_runtime::Call =
-			millau_runtime::SystemCall::remark(vec![42; (maximal_remark_size + 1) as _]).into();
+			millau_runtime::SystemCall::remark { remark: vec![42; (maximal_remark_size + 1) as _] }
+				.into();
 		let payload = send_message::message_payload(
 			Default::default(),
 			call.get_dispatch_info().weight,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert!(Millau::verify_message(&payload).is_err());
 	}
@@ -164,15 +157,18 @@ mod tests {
 	fn maximal_rialto_to_millau_message_dispatch_weight_is_computed_correctly() {
 		use rialto_runtime::millau_messages::Millau;
 
-		let maximal_dispatch_weight =
-			send_message::compute_maximal_message_dispatch_weight(bp_millau::max_extrinsic_weight());
-		let call: millau_runtime::Call = rialto_runtime::SystemCall::remark(vec![]).into();
+		let maximal_dispatch_weight = send_message::compute_maximal_message_dispatch_weight(
+			bp_millau::max_extrinsic_weight(),
+		);
+		let call: millau_runtime::Call =
+			rialto_runtime::SystemCall::remark { remark: vec![] }.into();
 
 		let payload = send_message::message_payload(
 			Default::default(),
 			maximal_dispatch_weight,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert_eq!(Millau::verify_message(&payload), Ok(()));
 
@@ -181,6 +177,7 @@ mod tests {
 			maximal_dispatch_weight + 1,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert!(Millau::verify_message(&payload).is_err());
 	}
@@ -189,15 +186,18 @@ mod tests {
 	fn maximal_weight_fill_block_to_rialto_is_generated_correctly() {
 		use millau_runtime::rialto_messages::Rialto;
 
-		let maximal_dispatch_weight =
-			send_message::compute_maximal_message_dispatch_weight(bp_rialto::max_extrinsic_weight());
-		let call: rialto_runtime::Call = millau_runtime::SystemCall::remark(vec![]).into();
+		let maximal_dispatch_weight = send_message::compute_maximal_message_dispatch_weight(
+			bp_rialto::max_extrinsic_weight(),
+		);
+		let call: rialto_runtime::Call =
+			millau_runtime::SystemCall::remark { remark: vec![] }.into();
 
 		let payload = send_message::message_payload(
 			Default::default(),
 			maximal_dispatch_weight,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert_eq!(Rialto::verify_message(&payload), Ok(()));
 
@@ -206,18 +206,20 @@ mod tests {
 			maximal_dispatch_weight + 1,
 			bp_message_dispatch::CallOrigin::SourceRoot,
 			&call,
+			send_message::DispatchFeePayment::AtSourceChain,
 		);
 		assert!(Rialto::verify_message(&payload).is_err());
 	}
 
 	#[test]
 	fn rialto_tx_extra_bytes_constant_is_correct() {
-		let rialto_call = rialto_runtime::Call::System(rialto_runtime::SystemCall::remark(vec![]));
+		let rialto_call =
+			rialto_runtime::Call::System(rialto_runtime::SystemCall::remark { remark: vec![] });
 		let rialto_tx = Rialto::sign_transaction(
 			Default::default(),
 			&sp_keyring::AccountKeyring::Alice.pair(),
-			0,
-			rialto_call.clone(),
+			relay_axlib_client::TransactionEra::immortal(),
+			UnsignedTransaction::new(rialto_call.clone(), 0),
 		);
 		let extra_bytes_in_transaction = rialto_tx.encode().len() - rialto_call.encode().len();
 		assert!(
@@ -230,12 +232,13 @@ mod tests {
 
 	#[test]
 	fn millau_tx_extra_bytes_constant_is_correct() {
-		let millau_call = millau_runtime::Call::System(millau_runtime::SystemCall::remark(vec![]));
+		let millau_call =
+			millau_runtime::Call::System(millau_runtime::SystemCall::remark { remark: vec![] });
 		let millau_tx = Millau::sign_transaction(
 			Default::default(),
 			&sp_keyring::AccountKeyring::Alice.pair(),
-			0,
-			millau_call.clone(),
+			relay_axlib_client::TransactionEra::immortal(),
+			UnsignedTransaction::new(millau_call.clone(), 0),
 		);
 		let extra_bytes_in_transaction = millau_tx.encode().len() - millau_call.encode().len();
 		assert!(
@@ -274,13 +277,14 @@ mod betanet_tests {
 		};
 
 		let actual = relay_betanet_client::runtime::BridgeGrandpaWococoCall::submit_finality_proof(
-			header.clone(),
+			Box::new(header.clone()),
 			justification.clone(),
 		);
-		let expected = millau_runtime::BridgeGrandpaRialtoCall::<millau_runtime::Runtime>::submit_finality_proof(
-			header,
-			justification,
-		);
+		let expected =
+			millau_runtime::BridgeGrandpaCall::<millau_runtime::Runtime>::submit_finality_proof {
+				finality_target: Box::new(header),
+				justification,
+			};
 
 		// when
 		let actual_encoded = actual.encode();
@@ -321,11 +325,15 @@ mod alphanet_tests {
 			votes_ancestries: vec![],
 		};
 
-		let actual = bp_alphanet::BridgeGrandpaBetaNetCall::submit_finality_proof(header.clone(), justification.clone());
-		let expected = millau_runtime::BridgeGrandpaRialtoCall::<millau_runtime::Runtime>::submit_finality_proof(
-			header,
-			justification,
+		let actual = relay_axctest_client::runtime::BridgeAxiaGrandpaCall::submit_finality_proof(
+			Box::new(header.clone()),
+			justification.clone(),
 		);
+		let expected =
+			millau_runtime::BridgeGrandpaCall::<millau_runtime::Runtime>::submit_finality_proof {
+				finality_target: Box::new(header),
+				justification,
+			};
 
 		// when
 		let actual_encoded = actual.encode();

@@ -8,8 +8,8 @@ The internal-to-runtime configuration of the allychain host. This is expected to
 
 ```rust
 struct HostConfiguration {
-	/// The minimum frequency at which allychains can update their validation code.
-	pub validation_upgrade_frequency: BlockNumber,
+	/// The minimum period, in blocks, between which allychains can update their validation code.
+	pub validation_upgrade_cooldown: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 	/// How long to keep code on-chain, in blocks. This should be sufficiently long that disputes
@@ -19,20 +19,20 @@ struct HostConfiguration {
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
 	pub max_head_data_size: u32,
-	/// The amount of availability cores to dedicate to parathreads.
-	pub parathread_cores: u32,
-	/// The number of retries that a parathread author has to submit their block.
-	pub parathread_retries: u32,
+	/// The amount of availability cores to dedicate to allythreads.
+	pub allythread_cores: u32,
+	/// The number of retries that a allythread author has to submit their block.
+	pub allythread_retries: u32,
 	/// How often allychain groups should be rotated across allychains.
 	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for allychains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
 	/// the chain. Must be at least 1.
 	pub chain_availability_period: BlockNumber,
-	/// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
+	/// The availability period, in blocks, for allythreads. Same as the `chain_availability_period`,
 	/// but a differing timeout due to differing requirements. Must be at least 1.
 	pub thread_availability_period: BlockNumber,
-	/// The amount of blocks ahead to schedule parathreads.
+	/// The amount of blocks ahead to schedule allythreads.
 	pub scheduling_lookahead: u32,
 	/// The maximum number of validators to have per core. `None` means no maximum.
 	pub max_validators_per_core: Option<u32>,
@@ -95,16 +95,16 @@ struct HostConfiguration {
 	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a allychain is allowed to accept.
 	pub hrmp_max_allychain_inbound_channels: u32,
-	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
-	pub hrmp_max_parathread_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a allythread is allowed to accept.
+	pub hrmp_max_allythread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
 	/// The maximum number of outbound HRMP channels a allychain is allowed to open.
 	pub hrmp_max_allychain_outbound_channels: u32,
-	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
-	pub hrmp_max_parathread_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a allythread is allowed to open.
+	pub hrmp_max_allythread_outbound_channels: u32,
 	/// The maximum number of outbound HRMP messages can be sent by a candidate.
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
@@ -116,15 +116,17 @@ struct HostConfiguration {
 
 Inherent data passed to a runtime entry-point for the advancement of allychain consensus.
 
-This contains 3 pieces of data:
+This contains 4 pieces of data:
 1. [`Bitfields`](availability.md#signed-availability-bitfield)
 2. [`BackedCandidates`](backing.md#backed-candidate)
 3. [`MultiDisputeStatementSet`](disputes.md#multidisputestatementset)
+4. `Header`
 
 ```rust
 struct ParaInherentData {
 	bitfields: Bitfields,
 	backed_candidates: BackedCandidates,
 	dispute_statements: MultiDisputeStatementSet,
+	parent_header: Header
 }
 ```

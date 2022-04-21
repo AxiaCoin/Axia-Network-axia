@@ -14,4 +14,4 @@ jobs:
           room_id: ${{ secrets.AXIA_DEVOPS_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.AXIA_DEVOPS_MATRIX_ACCESS_TOKEN }}
           message: "@room Burn-in request received for the following PR: ${{ github.event.pull_request.html_url }}"
-          server: "matrix.axiacoin.network"
+          server: "matrix.axia.io"

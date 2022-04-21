@@ -1,20 +1,20 @@
-// Copyright 2018-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2018-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! As part of AXIA's availability system, certain pieces of data
+//! As part of Axia's availability system, certain pieces of data
 //! for each block are required to be kept available.
 //!
 //! The way we accomplish this is by erasure coding the data into n pieces
@@ -32,7 +32,7 @@ use axia_primitives::v0::{self, BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
 use thiserror::Error;
 use trie::{
-	trie_types::{TrieDB, TrieDBMut},
+	trie_types::{TrieDB, TrieDBMutV0 as TrieDBMut},
 	MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
 };
 
@@ -135,7 +135,7 @@ pub fn obtain_chunks_v1(n_validators: usize, data: &AvailableData) -> Result<Vec
 /// Obtain erasure-coded chunks, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-fn obtain_chunks<T: Encode>(n_validators: usize, data: &T) -> Result<Vec<Vec<u8>>, Error> {
+pub fn obtain_chunks<T: Encode>(n_validators: usize, data: &T) -> Result<Vec<Vec<u8>>, Error> {
 	let params = code_params(n_validators)?;
 	let encoded = data.encode();
 
@@ -186,7 +186,7 @@ where
 /// are provided, recovery is not possible.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T, Error>
+pub fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T, Error>
 where
 	I: IntoIterator<Item = (&'a [u8], usize)>,
 {
@@ -370,7 +370,7 @@ impl<'a, I: Iterator<Item = &'a [u8]>> axia_scale_codec::Input for ShardInput<'a
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use axia_primitives::v0::{AvailableData, BlockData, PoVBlock};
+	use axia_primitives::v0::{AvailableData, BlockData, OmittedValidationData, PoVBlock};
 
 	// In order to adequately compute the number of entries in the Merkle
 	// trie, we must account for the fixed 16-ary trie structure.
@@ -385,7 +385,8 @@ mod tests {
 	fn round_trip_works() {
 		let pov_block = PoVBlock { block_data: BlockData((0..255).collect()) };
 
-		let available_data = AvailableData { pov_block, omitted_validation: Default::default() };
+		let available_data =
+			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
 		let chunks = obtain_chunks(10, &available_data).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -413,7 +414,8 @@ mod tests {
 		let pov_block =
 			PoVBlock { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
 
-		let available_data = AvailableData { pov_block, omitted_validation: Default::default() };
+		let available_data =
+			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
 
 		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 

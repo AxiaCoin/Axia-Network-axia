@@ -1,7 +1,7 @@
 [package]
 name = "xcm-simulator-fuzzer"
-version = "0.9.9"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 description = "Examples of xcm-simulator usage."
 edition = "2018"
 
@@ -10,13 +10,13 @@ codec = { package = "axia-scale-codec", version = "2.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "1.0", features = ["derive"] }
 
-frame-system = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-frame-support = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-balances = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-std = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+frame-system = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+frame-support = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-balances = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-std = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

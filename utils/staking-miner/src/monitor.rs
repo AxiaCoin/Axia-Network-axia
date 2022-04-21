@@ -1,38 +1,43 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The monitor command.
 
-use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig,
-};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
 use codec::Encode;
-use jsonrpsee_ws_client::{
-	types::{traits::SubscriptionClient, Subscription},
-	WsClient,
+use jsonrpsee::{
+	core::{
+		client::{Subscription, SubscriptionClientT},
+		Error as RpcError,
+	},
+	rpc_params,
+	ws_client::WsClient,
 };
 use sc_transaction_pool_api::TransactionStatus;
+use sp_core::storage::StorageKey;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	client: &WsClient,
 	at: B::Hash,
 ) -> Result<(), Error<T>> {
-	let key = sp_core::storage::StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
-	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, params! {key, at})
+	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
+	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, rpc_params! {key, at})
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
@@ -63,14 +68,16 @@ async fn ensure_no_previous_solution<
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
+
 	/// The monitor command.
 	pub(crate) async fn [<monitor_cmd_ $runtime>](
-		client: &WsClient,
+		client: WsClient,
 		shared: SharedConfig,
 		config: MonitorConfig,
 		signer: Signer,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
+		type StakingMinerError = Error<$crate::[<$runtime _runtime_exports>]::Runtime>;
 
 		let (sub, unsub) = if config.listen == "head" {
 			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
@@ -78,66 +85,143 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			("chain_subscribeFinalizedHeads", "chain_unsubscribeFinalizedHeads")
 		};
 
+		let mut subscription: Subscription<Header> = client.subscribe(&sub, None, &unsub).await?;
+
+		let client = Arc::new(client);
+		let (tx, mut rx) = mpsc::unbounded_channel::<StakingMinerError>();
+
 		loop {
-			log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?}", sub, unsub);
-			let mut subscription: Subscription<Header> = client
-				.subscribe(&sub, params! {}, &unsub)
-				.await
-				.unwrap();
-
-			while let Some(now) = subscription.next().await? {
-				let hash = now.hash();
-				log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
-
-				// if the runtime version has changed, terminate.
-				crate::check_versions::<Runtime>(client).await?;
-
-				// we prefer doing this check before fetching anything into a remote-ext.
-				if ensure_signed_phase::<Runtime, Block>(client, hash).await.is_err() {
-					log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
-					continue;
-				};
-
-				// grab an externalities without staking, just the election snapshot.
-				let mut ext = crate::create_election_ext::<Runtime, Block>(
-					shared.uri.clone(),
-					Some(hash),
-					vec![],
-				).await?;
-
-				if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
-					log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
-					continue;
+			let at = tokio::select! {
+				maybe_rp = subscription.next() => {
+					match maybe_rp {
+						Some(Ok(r)) => r,
+						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
+						Some(Err(RpcError::SubscriptionClosed(reason))) => {
+							log::warn!(target: LOG_TARGET, "subscription to {} terminated: {:?}. Retrying..", sub, reason);
+							subscription = client.subscribe(&sub, None, &unsub).await?;
+							continue;
+						}
+						Some(Err(e)) => {
+							log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
+							return Err(e.into());
+						}
+						// The subscription was dropped, should only happen if:
+						//	- the connection was closed.
+						//	- the subscription could not keep up with the server.
+						None => {
+							log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub);
+							subscription = client.subscribe(&sub, None, &unsub).await?;
+							continue
+						}
+					}
+				},
+				maybe_err = rx.recv() => {
+					match maybe_err {
+						Some(err) => return Err(err),
+						None => unreachable!("at least one sender kept in the main loop should always return Some; qed"),
+					}
 				}
+			};
 
-				// mine a solution, and run feasibility check on it as well.
-				let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, true)?;
-				log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+			// Spawn task and non-recoverable errors are sent back to the main task
+			// such as if the connection has been closed.
+			tokio::spawn(
+				send_and_watch_extrinsic(client.clone(), tx.clone(), at, signer.clone(), shared.clone(), config.clone())
+			);
+		}
 
-				let nonce = crate::get_account_info::<Runtime>(client, &signer.account, Some(hash))
-					.await?
-					.map(|i| i.nonce)
-					.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
-				let tip = 0 as Balance;
-				let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
-				let current_block = now.number.saturating_sub(1);
-				let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
-				log::trace!(
-					target: LOG_TARGET, "transaction mortality: {:?} -> {:?}",
-					era.birth(current_block.into()),
-					era.death(current_block.into()),
-				);
-				let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
-				let bytes = sp_core::Bytes(extrinsic.encode());
+		/// Construct extrinsic at given block and watch it.
+		async fn send_and_watch_extrinsic(
+			client: Arc<WsClient>,
+			tx: mpsc::UnboundedSender<StakingMinerError>,
+			at: Header,
+			signer: Signer,
+			shared: SharedConfig,
+			config: MonitorConfig,
+		) {
 
-				let mut tx_subscription: Subscription<
+			let hash = at.hash();
+			log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
+
+			// if the runtime version has changed, terminate.
+			if let Err(err) = crate::check_versions::<Runtime>(&*client).await {
+				let _ = tx.send(err.into());
+				return;
+			}
+
+			// we prefer doing this check before fetching anything into a remote-ext.
+			if ensure_signed_phase::<Runtime, Block>(&*client, hash).await.is_err() {
+				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
+				return;
+			}
+
+			// grab an externalities without staking, just the election snapshot.
+			let mut ext = match crate::create_election_ext::<Runtime, Block>(
+				shared.uri.clone(),
+				Some(hash),
+				vec![],
+			).await {
+				Ok(ext) => ext,
+				Err(err) => {
+					let _ = tx.send(err);
+					return;
+				}
+			};
+
+			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
+				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
+				return;
+			}
+
+			// mine a solution, and run feasibility check on it as well.
+			let (raw_solution, witness) = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
+				Ok(r) => r,
+				Err(err) => {
+					let _ = tx.send(err.into());
+					return;
+				}
+			};
+
+			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
+
+			let nonce = match crate::get_account_info::<Runtime>(&*client, &signer.account, Some(hash)).await {
+				Ok(maybe_account) => {
+					let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
+					acc.nonce
+				}
+				Err(err) => {
+					let _ = tx.send(err);
+					return;
+				}
+			};
+
+			let tip = 0 as Balance;
+			let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
+			let current_block = at.number.saturating_sub(1);
+			let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
+
+			log::trace!(
+				target: LOG_TARGET, "transaction mortality: {:?} -> {:?}",
+				era.birth(current_block.into()),
+				era.death(current_block.into()),
+			);
+
+			let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+			let bytes = sp_core::Bytes(extrinsic.encode());
+
+			let mut tx_subscription: Subscription<
 					TransactionStatus<<Block as BlockT>::Hash, <Block as BlockT>::Hash>
-				> = match client
-					.subscribe(&"author_submitAndWatchExtrinsic", params! { bytes }, "author_unwatchExtrinsic")
-					.await
-				{
-					Ok(sub) => sub,
-					Err(why) => {
+			> = match client.subscribe(
+				"author_submitAndWatchExtrinsic",
+				rpc_params! { bytes },
+				"author_unwatchExtrinsic"
+			).await {
+				Ok(sub) => sub,
+				Err(RpcError::RestartNeeded(e)) => {
+					let _ = tx.send(RpcError::RestartNeeded(e).into());
+					return
+				},
+				Err(why) => {
 					// This usually happens when we've been busy with mining for a few blocks, and
 					// now we're receiving the subscriptions of blocks in which we were busy. In
 					// these blocks, we still don't have a solution, so we re-compute a new solution
@@ -145,42 +229,87 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					// error. NOTE: to improve this overall, and to be able to introduce an array of
 					// other fancy features, we should make this multi-threaded and do the
 					// computation outside of this callback.
-						log::warn!(target: LOG_TARGET, "failing to submit a transaction {:?}. continuing...", why);
-						continue
-					}
+					log::warn!(
+						target: LOG_TARGET,
+						"failing to submit a transaction {:?}. ignore block: {}",
+						why, at.number
+					);
+					return;
+				},
+			};
+
+			while let Some(rp) = tx_subscription.next().await {
+				let status_update = match rp {
+					Ok(r) => r,
+					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
+					Err(RpcError::SubscriptionClosed(reason)) => {
+						log::warn!(
+							target: LOG_TARGET,
+							"tx subscription closed by the server: {:?}; skip block: {}",
+							reason, at.number
+						);
+						return;
+					},
+					Err(e) => {
+						log::error!(target: LOG_TARGET, "subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
+						let _ = tx.send(e.into());
+						return;
+					},
 				};
 
-				while let Some(status_update) = tx_subscription.next().await? {
-					log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
-					match status_update {
-						TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
-						TransactionStatus::InBlock(hash) => {
-							log::info!(target: LOG_TARGET, "included at {:?}", hash);
-							let key = frame_support::storage::storage_prefix(b"System", b"Events");
-							let events = get_storage::<Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
-							>(client, params!{ key, hash }).await?.unwrap_or_default();
-							log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
-						}
-						TransactionStatus::Retracted(hash) => {
-							log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
-						}
-						TransactionStatus::Finalized(hash) => {
-							log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
-							break
-						}
-						_ => {
-							log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status_update);
-							break
-						}
-					}
+				log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
+				match status_update {
+					TransactionStatus::Ready |
+					TransactionStatus::Broadcast(_) |
+					TransactionStatus::Future => continue,
+					TransactionStatus::InBlock(hash) => {
+						log::info!(target: LOG_TARGET, "included at {:?}", hash);
+						let key = StorageKey(
+							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
+						);
+						let key2 = key.clone();
+
+						let events = match get_storage::<
+							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
+						>(&*client, rpc_params! { key, hash })
+						.await {
+							Ok(rp) => rp.unwrap_or_default(),
+							Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {
+								let _ = tx.send(RpcError::RestartNeeded(e).into());
+								return;
+							}
+							// Decoding or other RPC error => just terminate the task.
+							Err(e) => {
+								log::warn!(target: LOG_TARGET, "get_storage [key: {:?}, hash: {:?}] failed: {:?}; skip block: {}",
+									key2, hash, e, at.number
+								);
+								return;
+							}
+						};
+
+						log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
+					},
+					TransactionStatus::Retracted(hash) => {
+						log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
+					},
+					TransactionStatus::Finalized(hash) => {
+						log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
+						break
+					},
+					_ => {
+						log::warn!(
+							target: LOG_TARGET,
+							"Stopping listen due to other status {:?}",
+							status_update
+						);
+						break
+					},
 				};
 			}
-
-			log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub)
 		}
 	}
 }}}
 
 monitor_cmd_for!(axia);
-monitor_cmd_for!(axiatest);
+monitor_cmd_for!(axctest);
 monitor_cmd_for!(alphanet);

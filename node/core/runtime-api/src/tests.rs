@@ -1,29 +1,33 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 
+use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use axia_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
-use axia_node_subsystem_test_helpers as test_helpers;
-use axia_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use axia_node_subsystem_test_helpers::make_subsystem_context;
+use axia_primitives::{
+	v1::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		GroupRotationInfo, Id as AllyId, InboundDownwardMessage, InboundHrmpMessage,
+		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	v2::{PvfCheckStatement, SessionInfo},
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -38,18 +42,21 @@ struct MockRuntimeApi {
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	availability_cores: Vec<CoreState>,
 	availability_cores_wait: Arc<Mutex<()>>,
-	validation_data: HashMap<ParaId, PersistedValidationData>,
+	validation_data: HashMap<AllyId, PersistedValidationData>,
 	session_index_for_child: SessionIndex,
 	session_info: HashMap<SessionIndex, SessionInfo>,
-	validation_code: HashMap<ParaId, ValidationCode>,
+	validation_code: HashMap<AllyId, ValidationCode>,
 	validation_code_by_hash: HashMap<ValidationCodeHash, ValidationCode>,
-	validation_outputs_results: HashMap<ParaId, bool>,
-	candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
+	validation_outputs_results: HashMap<AllyId, bool>,
+	candidate_pending_availability: HashMap<AllyId, CommittedCandidateReceipt>,
 	candidate_events: Vec<CandidateEvent>,
-	dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
-	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
+	dmq_contents: HashMap<AllyId, Vec<InboundDownwardMessage>>,
+	hrmp_channels: HashMap<AllyId, BTreeMap<AllyId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
 	on_chain_votes: Option<ScrapedOnChainVotes>,
+	submitted_pvf_check_statement: Arc<Mutex<Vec<(PvfCheckStatement, ValidatorSignature)>>>,
+	pvfs_require_precheck: Vec<ValidationCodeHash>,
+	validation_code_hash: HashMap<AllyId, ValidationCodeHash>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -84,19 +91,30 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn persisted_validation_data(
 			&self,
-			para: ParaId,
+			para: AllyId,
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<PersistedValidationData> {
 			self.validation_data.get(&para).cloned()
 		}
 
+		fn assumed_validation_data(
+			ally_id: AllyId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData, ValidationCodeHash)> {
+			self.validation_data
+				.get(&ally_id)
+				.cloned()
+				.filter(|data| data.hash() == expected_persisted_validation_data_hash)
+				.zip(self.validation_code.get(&ally_id).map(|code| code.hash()))
+		}
+
 		fn check_validation_outputs(
 			&self,
-			para_id: ParaId,
+			ally_id: AllyId,
 			_commitments: axia_primitives::v1::CandidateCommitments,
 		) -> bool {
 			self.validation_outputs_results
-				.get(&para_id)
+				.get(&ally_id)
 				.cloned()
 				.expect(
 					"`check_validation_outputs` called but the expected result hasn't been supplied"
@@ -113,7 +131,7 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn validation_code(
 			&self,
-			para: ParaId,
+			para: AllyId,
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<ValidationCode> {
 			self.validation_code.get(&para).map(|c| c.clone())
@@ -121,7 +139,7 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn candidate_pending_availability(
 			&self,
-			para: ParaId,
+			para: AllyId,
 		) -> Option<CommittedCandidateReceipt> {
 			self.candidate_pending_availability.get(&para).map(|c| c.clone())
 		}
@@ -132,15 +150,15 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn dmq_contents(
 			&self,
-			recipient: ParaId,
+			recipient: AllyId,
 		) -> Vec<InboundDownwardMessage> {
 			self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 		}
 
 		fn inbound_hrmp_channels_contents(
 			&self,
-			recipient: ParaId
-		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage>> {
+			recipient: AllyId
+		) -> BTreeMap<AllyId, Vec<InboundHrmpMessage>> {
 			self.hrmp_channels.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 		}
 
@@ -153,6 +171,26 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn on_chain_votes(&self) -> Option<ScrapedOnChainVotes> {
 			self.on_chain_votes.clone()
+		}
+
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature) {
+			self
+				.submitted_pvf_check_statement
+				.lock()
+				.expect("poisoned mutext")
+				.push((stmt, signature));
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			self.pvfs_require_precheck.clone()
+		}
+
+		fn validation_code_hash(
+			&self,
+			para: AllyId,
+			_assumption: OccupiedCoreAssumption,
+		) -> Option<ValidationCodeHash> {
+			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
 	}
 
@@ -197,7 +235,7 @@ sp_api::mock_impl_runtime_apis! {
 
 #[test]
 fn requests_authorities() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -223,7 +261,7 @@ fn requests_authorities() {
 
 #[test]
 fn requests_validators() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -249,7 +287,7 @@ fn requests_validators() {
 
 #[test]
 fn requests_validator_groups() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -275,7 +313,7 @@ fn requests_validator_groups() {
 
 #[test]
 fn requests_availability_cores() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -301,7 +339,7 @@ fn requests_availability_cores() {
 
 #[test]
 fn requests_persisted_validation_data() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
@@ -346,8 +384,60 @@ fn requests_persisted_validation_data() {
 }
 
 #[test]
+fn requests_assumed_validation_data() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+	let relay_parent = [1; 32].into();
+	let para_a = 5.into();
+	let para_b = 6.into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let validation_code = ValidationCode(vec![1, 2, 3]);
+	let expected_data_hash = <PersistedValidationData as Default>::default().hash();
+	let expected_code_hash = validation_code.hash();
+
+	let mut runtime_api = MockRuntimeApi::default();
+	runtime_api.validation_data.insert(para_a, Default::default());
+	runtime_api.validation_code.insert(para_a, validation_code);
+	runtime_api.validation_data.insert(para_b, Default::default());
+	let runtime_api = Arc::new(runtime_api);
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::AssumedValidationData(para_a, expected_data_hash, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some((Default::default(), expected_code_hash)));
+
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::AssumedValidationData(para_a, Hash::zero(), tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), None);
+
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
 fn requests_check_validation_outputs() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
@@ -394,7 +484,7 @@ fn requests_check_validation_outputs() {
 
 #[test]
 fn requests_session_index_for_child() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -418,12 +508,29 @@ fn requests_session_index_for_child() {
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
 
+fn dummy_session_info() -> SessionInfo {
+	SessionInfo {
+		validators: vec![],
+		discovery_keys: vec![],
+		assignment_keys: vec![],
+		validator_groups: vec![],
+		n_cores: 4u32,
+		zeroth_delay_tranche_width: 0u32,
+		relay_vrf_modulo_samples: 0u32,
+		n_delay_tranches: 2u32,
+		no_show_slots: 0u32,
+		needed_approvals: 1u32,
+		active_validator_indices: vec![],
+		dispute_period: 6,
+		random_seed: [0u8; 32],
+	}
+}
 #[test]
 fn requests_session_info() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let session_index = 1;
-	runtime_api.session_info.insert(session_index, Default::default());
+	runtime_api.session_info.insert(session_index, dummy_session_info());
 	let runtime_api = Arc::new(runtime_api);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
@@ -443,7 +550,7 @@ fn requests_session_info() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(dummy_session_info()));
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -453,15 +560,16 @@ fn requests_session_info() {
 
 #[test]
 fn requests_validation_code() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
 	let spawner = sp_core::testing::TaskExecutor::new();
+	let validation_code = dummy_validation_code();
 
 	let mut runtime_api = MockRuntimeApi::default();
-	runtime_api.validation_code.insert(para_a, Default::default());
+	runtime_api.validation_code.insert(para_a, validation_code.clone());
 	let runtime_api = Arc::new(runtime_api);
 
 	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
@@ -478,7 +586,7 @@ fn requests_validation_code() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(validation_code));
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
@@ -500,14 +608,17 @@ fn requests_validation_code() {
 
 #[test]
 fn requests_candidate_pending_availability() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
 	let para_b = 6.into();
 	let spawner = sp_core::testing::TaskExecutor::new();
+	let candidate_receipt = dummy_committed_candidate_receipt(relay_parent);
 
 	let mut runtime_api = MockRuntimeApi::default();
-	runtime_api.candidate_pending_availability.insert(para_a, Default::default());
+	runtime_api
+		.candidate_pending_availability
+		.insert(para_a, candidate_receipt.clone());
 	let runtime_api = Arc::new(runtime_api);
 
 	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
@@ -524,7 +635,7 @@ fn requests_candidate_pending_availability() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(candidate_receipt));
 
 		let (tx, rx) = oneshot::channel();
 
@@ -547,7 +658,7 @@ fn requests_candidate_pending_availability() {
 
 #[test]
 fn requests_candidate_events() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -573,7 +684,7 @@ fn requests_candidate_events() {
 
 #[test]
 fn requests_dmq_contents() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
@@ -621,7 +732,7 @@ fn requests_dmq_contents() {
 
 #[test]
 fn requests_inbound_hrmp_channels_contents() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
 	let para_a = 99.into();
@@ -678,7 +789,7 @@ fn requests_inbound_hrmp_channels_contents() {
 
 #[test]
 fn requests_validation_code_by_hash() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let (runtime_api, validation_code) = {
@@ -721,7 +832,7 @@ fn requests_validation_code_by_hash() {
 
 #[test]
 fn multiple_requests_in_parallel_are_working() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let runtime_api = Arc::new(MockRuntimeApi::default());
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -762,8 +873,8 @@ fn multiple_requests_in_parallel_are_working() {
 }
 
 #[test]
-fn request_babe_epoch() {
-	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+fn requests_babe_epoch() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let epoch = BabeEpoch {
 		epoch_index: 100,
@@ -790,6 +901,144 @@ fn request_babe_epoch() {
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), epoch);
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn requests_submit_pvf_check_statement() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let runtime_api = Arc::new(MockRuntimeApi::default());
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+
+	let relay_parent = [1; 32].into();
+	let test_task = async move {
+		let (stmt, sig) = fake_statement();
+
+		// Send the same statement twice.
+		//
+		// Here we just want to ensure that those requests do not go through the cache.
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
+				),
+			})
+			.await;
+		assert_eq!(rx.await.unwrap().unwrap(), ());
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
+				),
+			})
+			.await;
+		assert_eq!(rx.await.unwrap().unwrap(), ());
+
+		assert_eq!(
+			&*runtime_api.submitted_pvf_check_statement.lock().expect("poisened mutex"),
+			&[(stmt.clone(), sig.clone()), (stmt.clone(), sig.clone())]
+		);
+
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+
+	fn fake_statement() -> (PvfCheckStatement, ValidatorSignature) {
+		let stmt = PvfCheckStatement {
+			accept: true,
+			subject: [1; 32].into(),
+			session_index: 1,
+			validator_index: 1.into(),
+		};
+		let sig = sp_keyring::Sr25519Keyring::Alice.sign(&stmt.signing_payload()).into();
+		(stmt, sig)
+	}
+}
+
+#[test]
+fn requests_pvfs_require_precheck() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let runtime_api = Arc::new({
+		let mut runtime_api = MockRuntimeApi::default();
+		runtime_api.pvfs_require_precheck = vec![[1; 32].into(), [2; 32].into()];
+		runtime_api
+	});
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+
+	let relay_parent = [1; 32].into();
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::PvfsRequirePrecheck(tx)),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), vec![[1; 32].into(), [2; 32].into()]);
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn requests_validation_code_hash() {
+	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
+
+	let relay_parent = [1; 32].into();
+	let para_a = 5.into();
+	let para_b = 6.into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+	let validation_code_hash = dummy_validation_code().hash();
+
+	let mut runtime_api = MockRuntimeApi::default();
+	runtime_api.validation_code_hash.insert(para_a, validation_code_hash.clone());
+	let runtime_api = Arc::new(runtime_api);
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_a, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some(validation_code_hash));
+
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCodeHash(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), None);
+
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 

@@ -44,8 +44,8 @@ identified by `(A, B)`.
 
 ```rust,ignore
 struct HrmpChannelId {
-    sender: ParaId,
-    recipient: ParaId,
+    sender: AllyId,
+    recipient: AllyId,
 }
 ```
 
@@ -57,8 +57,8 @@ This message ends up in the recipient's mailbox. A size of a horizontal message 
 
 ```rust,ignore
 struct OutboundHrmpMessage {
-	/// The para that will get this message in its downward message queue.
-	pub recipient: ParaId,
+	/// The ally that will get this message in its downward message queue.
+	pub recipient: AllyId,
 	/// The message payload.
 	pub data: Vec<u8>,
 }

@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! [`ApprovalDistributionSubsystem`] implementation.
 //!
@@ -613,7 +613,7 @@ impl State {
 				AssignmentCheckResult::AcceptedDuplicate => {
 					// "duplicate" assignments aren't necessarily equal.
 					// There is more than one way each validator can be assigned to each core.
-					// cf. https://github.com/axia/axia/pull/2160#discussion_r557628699
+					// cf. https://github.com/axiatech/axia/pull/2160#discussion_r557628699
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(fingerprint);
 					}
@@ -1303,42 +1303,42 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			assignments_imported_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_assignments_imported_total",
+					"axia_allychain_assignments_imported_total",
 					"Number of valid assignments imported locally or from other peers.",
 				)?,
 				registry,
 			)?,
 			approvals_imported_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_approvals_imported_total",
+					"axia_allychain_approvals_imported_total",
 					"Number of valid approvals imported locally or from other peers.",
 				)?,
 				registry,
 			)?,
 			unified_with_peer_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_unified_with_peer_total",
+					"axia_allychain_unified_with_peer_total",
 					"Number of times `unify_with_peer` is called.",
 				)?,
 				registry,
 			)?,
 			time_unify_with_peer: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_time_unify_with_peer",
+					"axia_allychain_time_unify_with_peer",
 					"Time spent within fn `unify_with_peer`.",
 				))?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_time_import_pending_now_known",
+					"axia_allychain_time_import_pending_now_known",
 					"Time spent on importing pending assignments and approvals.",
 				))?,
 				registry,
 			)?,
 			time_awaiting_approval_voting: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_time_awaiting_approval_voting",
+					"axia_allychain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
 				))?,
 				registry,

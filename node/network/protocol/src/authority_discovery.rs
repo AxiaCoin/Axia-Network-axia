@@ -1,22 +1,22 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Authority discovery service interfacing.
 
-use std::fmt::Debug;
+use std::{collections::HashSet, fmt::Debug};
 
 use async_trait::async_trait;
 
@@ -34,12 +34,12 @@ pub trait AuthorityDiscovery: Send + Debug + 'static {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>>;
+	) -> Option<HashSet<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId>;
+	) -> Option<HashSet<AuthorityDiscoveryId>>;
 }
 
 #[async_trait]
@@ -47,14 +47,14 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>> {
+	) -> Option<HashSet<Multiaddr>> {
 		AuthorityDiscoveryService::get_addresses_by_authority_id(self, authority).await
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId> {
-		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
+	) -> Option<HashSet<AuthorityDiscoveryId>> {
+		AuthorityDiscoveryService::get_authority_ids_by_peer_id(self, peer_id).await
 	}
 }

@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The Statement Distribution Subsystem.
 //!
@@ -104,7 +104,7 @@ const LOG_TARGET: &str = "allychain::statement-distribution";
 const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
-pub struct StatementDistribution {
+pub struct StatementDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
@@ -113,7 +113,7 @@ pub struct StatementDistribution {
 	metrics: Metrics,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for StatementDistribution
+impl<Context> overseer::Subsystem<Context, SubsystemError> for StatementDistributionSubsystem
 where
 	Context: SubsystemContext<Message = StatementDistributionMessage>,
 	Context: overseer::SubsystemContext<Message = StatementDistributionMessage>,
@@ -131,14 +131,14 @@ where
 	}
 }
 
-impl StatementDistribution {
+impl StatementDistributionSubsystem {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		metrics: Metrics,
-	) -> StatementDistribution {
-		StatementDistribution { keystore, req_receiver: Some(req_receiver), metrics }
+	) -> Self {
+		Self { keystore, req_receiver: Some(req_receiver), metrics }
 	}
 }
 
@@ -214,7 +214,7 @@ struct PeerRelayParentKnowledge {
 	/// How many large statements this peer already sent us.
 	///
 	/// Flood protection for large statements is rather hard and as soon as we get
-	/// `https://github.com/axia/axia/issues/2979` implemented also no longer necessary.
+	/// `https://github.com/axiatech/axia/issues/2979` implemented also no longer necessary.
 	/// Reason: We keep messages around until we fetched the payload, but if a node makes up
 	/// statements and never provides the data, we will keep it around for the slot duration. Not
 	/// even signature checking would help, as the sender, if a validator, can just sign arbitrary
@@ -413,8 +413,8 @@ impl PeerRelayParentKnowledge {
 struct PeerData {
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
-	// Peer might be an authority.
-	maybe_authority: Option<AuthorityDiscoveryId>,
+	/// Peer might be known as authority with the given ids.
+	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 impl PeerData {
@@ -624,9 +624,9 @@ struct ActiveHeadData {
 	statements: IndexMap<StoredStatementComparator, SignedFullStatement>,
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
-	/// The validators at this head.
+	/// The allychain validators at the head's child session index.
 	validators: Vec<ValidatorId>,
-	/// The session index this head is at.
+	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
@@ -1466,14 +1466,18 @@ async fn handle_network_update(
 					maybe_authority: maybe_authority.clone(),
 				},
 			);
-			if let Some(authority) = maybe_authority {
-				authorities.insert(authority, peer);
+			if let Some(authority_ids) = maybe_authority {
+				authority_ids.into_iter().for_each(|a| {
+					authorities.insert(a, peer);
+				});
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
-			if let Some(auth_id) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
-				authorities.remove(&auth_id);
+			if let Some(auth_ids) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
+				auth_ids.into_iter().for_each(|a| {
+					authorities.remove(&a);
+				});
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
@@ -1531,7 +1535,7 @@ async fn handle_network_update(
 	}
 }
 
-impl StatementDistribution {
+impl StatementDistributionSubsystem {
 	async fn run(
 		mut self,
 		mut ctx: (impl SubsystemContext<Message = StatementDistributionMessage>
@@ -1794,8 +1798,9 @@ impl StatementDistribution {
 						"New active leaf",
 					);
 
+					// Retrieve the allychain validators at the child of the head we track.
 					let session_index =
-						runtime.get_session_index(ctx.sender(), relay_parent).await?;
+						runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 					let info = runtime
 						.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 						.await?;
@@ -1966,14 +1971,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			statements_distributed: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_statements_distributed_total",
+					"axia_allychain_statements_distributed_total",
 					"Number of candidate validity statements distributed to other peers.",
 				)?,
 				registry,
 			)?,
 			sent_requests: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_statement_distribution_sent_requests_total",
+					"axia_allychain_statement_distribution_sent_requests_total",
 					"Number of large statement fetching requests sent.",
 				)?,
 				registry,
@@ -1981,7 +1986,7 @@ impl metrics::Metrics for Metrics {
 			received_responses: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"allychain_statement_distribution_received_responses_total",
+						"axia_allychain_statement_distribution_received_responses_total",
 						"Number of received responses for large statement data.",
 					),
 					&["success"],
@@ -1990,21 +1995,21 @@ impl metrics::Metrics for Metrics {
 			)?,
 			active_leaves_update: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_statement_distribution_active_leaves_update",
+					"axia_allychain_statement_distribution_active_leaves_update",
 					"Time spent within `statement_distribution::active_leaves_update`",
 				))?,
 				registry,
 			)?,
 			share: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_statement_distribution_share",
+					"axia_allychain_statement_distribution_share",
 					"Time spent within `statement_distribution::share`",
 				))?,
 				registry,
 			)?,
 			network_bridge_update_v1: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_statement_distribution_network_bridge_update_v1",
+					"axia_allychain_statement_distribution_network_bridge_update_v1",
 					"Time spent within `statement_distribution::network_bridge_update_v1`",
 				))?,
 				registry,

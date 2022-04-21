@@ -1,22 +1,22 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Declaration of the allychain specific origin and a pallet that hosts it.
 
-use primitives::v1::Id as ParaId;
+use primitives::v1::Id as AllyId;
 use sp_runtime::traits::BadOrigin;
 use sp_std::result;
 
@@ -24,7 +24,7 @@ pub use pallet::*;
 
 /// Ensure that the origin `o` represents a allychain.
 /// Returns `Ok` with the allychain ID that effected the extrinsic or an `Err` otherwise.
-pub fn ensure_allychain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, BadOrigin>
+pub fn ensure_allychain<OuterOrigin>(o: OuterOrigin) -> result::Result<AllyId, BadOrigin>
 where
 	OuterOrigin: Into<result::Result<Origin, OuterOrigin>>,
 {
@@ -57,7 +57,7 @@ pub mod pallet {
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug, scale_info::TypeInfo)]
 	pub enum Origin {
 		/// It comes from a allychain.
-		Allychain(ParaId),
+		Allychain(AllyId),
 	}
 }
 

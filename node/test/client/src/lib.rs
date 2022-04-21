@@ -1,22 +1,22 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A AXIA test client.
+//! A Axia test client.
 //!
-//! This test client is using the AXIA test runtime.
+//! This test client is using the Axia test runtime.
 
 mod block_builder;
 
@@ -29,7 +29,7 @@ pub use block_builder::*;
 pub use axia_test_runtime as runtime;
 pub use axia_test_service::{
 	construct_extrinsic, construct_transfer_extrinsic, Client, FullBackend,
-	AXIATESTExecutorDispatch,
+	AxiaTestExecutorDispatch,
 };
 pub use axlib_test_client::*;
 
@@ -37,10 +37,10 @@ pub use axlib_test_client::*;
 pub type Executor = client::LocalCallExecutor<
 	Block,
 	FullBackend,
-	sc_executor::NativeElseWasmExecutor<AXIATESTExecutorDispatch>,
+	sc_executor::NativeElseWasmExecutor<AxiaTestExecutorDispatch>,
 >;
 
-/// Test client builder for AXIA.
+/// Test client builder for Axia.
 pub type TestClientBuilder =
 	axlib_test_client::TestClientBuilder<Block, Executor, FullBackend, GenesisParameters>;
 

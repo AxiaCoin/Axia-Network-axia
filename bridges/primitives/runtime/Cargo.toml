@@ -2,29 +2,28 @@
 name = "bp-runtime"
 description = "Primitives that may be used at (bridges) runtime level."
 version = "0.1.0"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "axia-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "axia-scale-codec", version = "2.2.0", default-features = false }
 hash-db = { version = "0.15.2", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 
 # Axlib Dependencies
 
-frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-state-machine = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-trie = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+frame-support = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-state-machine = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-std = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-trie = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-
+hex-literal = "0.3"
 
 [features]
 default = ["std"]

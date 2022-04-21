@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This module is responsible for maintaining a consistent initialization order for all other
 //! allychains modules. It's also responsible for finalization and session change notifications.
@@ -33,6 +33,9 @@ use axia_scale_codec::{Decode, Encode};
 use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -94,6 +97,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -147,7 +151,7 @@ pub mod pallet {
 			// - Paras
 			// - Scheduler
 			// - Inclusion
-			// - SessionInfo
+			// - `SessionInfo`
 			// - Disputes
 			// - DMP
 			// - UMP
@@ -168,7 +172,7 @@ pub mod pallet {
 			total_weight
 		}
 
-		fn on_finalize(_: T::BlockNumber) {
+		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
@@ -177,7 +181,7 @@ pub mod pallet {
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
 			scheduler::Pallet::<T>::initializer_finalize();
-			paras::Pallet::<T>::initializer_finalize();
+			paras::Pallet::<T>::initializer_finalize(now);
 			shared::Pallet::<T>::initializer_finalize();
 			configuration::Pallet::<T>::initializer_finalize();
 
@@ -221,23 +225,19 @@ impl<T: Config> Pallet<T> {
 		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
-		let prev_config = <configuration::Pallet<T>>::config();
-
 		let random_seed = {
 			let mut buf = [0u8; 32];
 			// TODO: audit usage of randomness API
-			// https://github.com/axia/axia/issues/2601
+			// https://github.com/axiatech/axia/issues/2601
 			let (random_hash, _) = T::Randomness::random(&b"paras"[..]);
 			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
 			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
 			buf
 		};
 
-		// We can't pass the new config into the thing that determines the new config,
-		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Pallet::<T>::initializer_on_new_session(&session_index);
-
-		let new_config = <configuration::Pallet<T>>::config();
+		let configuration::SessionChangeOutcome { prev_config, new_config } =
+			configuration::Pallet::<T>::initializer_on_new_session(&session_index);
+		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
@@ -292,9 +292,9 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// Allow to trigger `on_new_session` in tests, this is needed as long as `pallet_session` is not
 	// implemented in mock.
-	#[cfg(test)]
+	#[cfg(any(test, feature = "runtime-benchmarks"))]
 	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
 		changed: bool,
 		session_index: SessionIndex,
@@ -330,138 +330,4 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 	}
 
 	fn on_disabled(_i: u32) {}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::mock::{
-		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
-		System,
-	};
-	use primitives::v1::Id as ParaId;
-
-	use frame_support::{
-		assert_ok,
-		traits::{OnFinalize, OnInitialize},
-	};
-
-	#[test]
-	fn session_0_is_instantly_applied() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_new_session(
-				false,
-				0,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			let v = <Initializer as Store>::BufferedSessionChanges::get();
-			assert!(v.is_empty());
-
-			assert_eq!(SessionInfo::earliest_stored_session(), 0);
-			assert!(SessionInfo::session_info(0).is_some());
-		});
-	}
-
-	#[test]
-	fn session_change_before_initialize_is_still_buffered_after() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_new_session(
-				false,
-				1,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			let now = System::block_number();
-			Initializer::on_initialize(now);
-
-			let v = <Initializer as Store>::BufferedSessionChanges::get();
-			assert_eq!(v.len(), 1);
-		});
-	}
-
-	#[test]
-	fn session_change_applied_on_finalize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-			Initializer::on_new_session(
-				false,
-				1,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			Initializer::on_finalize(1);
-
-			assert!(<Initializer as Store>::BufferedSessionChanges::get().is_empty());
-		});
-	}
-
-	#[test]
-	fn sets_flag_on_initialize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-
-			assert!(<Initializer as Store>::HasInitialized::get().is_some());
-		})
-	}
-
-	#[test]
-	fn clears_flag_on_finalize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-			Initializer::on_finalize(1);
-
-			assert!(<Initializer as Store>::HasInitialized::get().is_none());
-		})
-	}
-
-	#[test]
-	fn scheduled_cleanup_performed() {
-		let a = ParaId::from(1312);
-		let b = ParaId::from(228);
-		let c = ParaId::from(123);
-
-		let mock_genesis = crate::paras::ParaGenesisArgs {
-			allychain: true,
-			genesis_head: Default::default(),
-			validation_code: Default::default(),
-		};
-
-		new_test_ext(MockGenesisConfig {
-			configuration: crate::configuration::GenesisConfig {
-				config: crate::configuration::HostConfiguration {
-					max_downward_message_size: 1024,
-					..Default::default()
-				},
-			},
-			paras: crate::paras::GenesisConfig {
-				paras: vec![
-					(a, mock_genesis.clone()),
-					(b, mock_genesis.clone()),
-					(c, mock_genesis.clone()),
-				],
-				..Default::default()
-			},
-			..Default::default()
-		})
-		.execute_with(|| {
-			// enqueue downward messages to A, B and C.
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), a, vec![1, 2, 3]));
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
-
-			assert_ok!(Paras::schedule_para_cleanup(a));
-			assert_ok!(Paras::schedule_para_cleanup(b));
-
-			// Apply session 2 in the future
-			Initializer::apply_new_session(2, vec![], vec![]);
-
-			assert!(Dmp::dmq_contents(a).is_empty());
-			assert!(Dmp::dmq_contents(b).is_empty());
-			assert!(!Dmp::dmq_contents(c).is_empty());
-		});
-	}
 }

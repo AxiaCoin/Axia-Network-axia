@@ -1,20 +1,20 @@
-// Copyright 2017-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA service. Specialized wrapper over axlib service.
+//! Axia service. Specialized wrapper over axlib service.
 
 #![deny(unused_results)]
 
@@ -29,11 +29,12 @@ pub mod overseer;
 #[cfg(feature = "full-node")]
 pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
-#[cfg(all(test, feature = "disputes"))]
+#[cfg(test)]
 mod tests;
 
 #[cfg(feature = "full-node")]
 use {
+	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	axia_node_core_approval_voting::Config as ApprovalVotingConfig,
 	axia_node_core_av_store::Config as AvailabilityConfig,
@@ -44,7 +45,7 @@ use {
 	},
 	axia_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	axia_overseer::BlockInfo,
-	sc_client_api::ExecutorProvider,
+	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_trie::PrefixedMemoryDB,
 	tracing::info,
 };
@@ -53,7 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
 	axia_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
-	axia_primitives::v1::AllychainHost,
+	axia_primitives::v2::AllychainHost,
 	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -75,25 +76,25 @@ use telemetry::TelemetryWorker;
 use telemetry::{Telemetry, TelemetryWorkerHandle};
 
 #[cfg(feature = "betanet-native")]
-pub use axia_client::BetaNetExecutorDispatch;
+pub use axia_client::BetanetExecutorDispatch;
 
 #[cfg(feature = "alphanet-native")]
-pub use axia_client::AlphaNetExecutorDispatch;
+pub use axia_client::AlphanetExecutorDispatch;
 
-#[cfg(feature = "axiatest-native")]
-pub use axia_client::AXIATESTExecutorDispatch;
+#[cfg(feature = "axctest-native")]
+pub use axia_client::AxiaTestExecutorDispatch;
 
 #[cfg(feature = "axia-native")]
-pub use axia_client::AXIAExecutorDispatch;
+pub use axia_client::AxiaExecutorDispatch;
 
-pub use chain_spec::{AXIATESTChainSpec, AXIAChainSpec, BetaNetChainSpec, AlphaNetChainSpec};
+pub use chain_spec::{AxiaTestChainSpec, AxiaChainSpec, BetanetChainSpec, AlphanetChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
 #[cfg(feature = "full-node")]
 pub use axia_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use axia_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
+pub use axia_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as AllyId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -101,20 +102,18 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as AxlibServiceError, PruningMode, Role, RuntimeGenesis,
-	TFullBackend, TFullCallExecutor, TFullClient, TLightBackend, TLightCallExecutor, TLightClient,
-	TaskManager, TransactionPoolOptions,
+	TFullBackend, TFullCallExecutor, TFullClient, TaskManager, TransactionPoolOptions,
 };
 pub use sp_api::{ApiRef, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::{
 	generic,
 	traits::{
-		self as runtime_traits, BlakeTwo256, Block as BlockT, DigestFor, HashFor,
-		Header as HeaderT, NumberFor,
+		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
 	},
 };
 
-#[cfg(feature = "axiatest-native")]
-pub use axiatest_runtime;
+#[cfg(feature = "axctest-native")]
+pub use axctest_runtime;
 #[cfg(feature = "axia-native")]
 pub use axia_runtime;
 #[cfg(feature = "betanet-native")]
@@ -234,31 +233,34 @@ pub enum Error {
 	DatabasePathRequired,
 
 	#[cfg(feature = "full-node")]
-	#[error("Expected at least one of axia, axiatest, alphanet or betanet runtime feature")]
+	#[error("Expected at least one of axia, axctest, alphanet or betanet runtime feature")]
 	NoRuntime,
 }
 
 /// Can be called for a `Configuration` to identify which network the configuration targets.
 pub trait IdentifyVariant {
-	/// Returns if this is a configuration for the `AXIATEST` network.
-	fn is_axiatest(&self) -> bool;
+	/// Returns if this is a configuration for the `AxiaTest` network.
+	fn is_axctest(&self) -> bool;
 
-	/// Returns if this is a configuration for the `AlphaNet` network.
+	/// Returns if this is a configuration for the `Alphanet` network.
 	fn is_alphanet(&self) -> bool;
 
-	/// Returns if this is a configuration for the `BetaNet` network.
+	/// Returns if this is a configuration for the `Betanet` network.
 	fn is_betanet(&self) -> bool;
 
 	/// Returns if this is a configuration for the `Wococo` test network.
 	fn is_wococo(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Versi` test network.
+	fn is_versi(&self) -> bool;
 
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
-	fn is_axiatest(&self) -> bool {
-		self.id().starts_with("axiatest") || self.id().starts_with("axct")
+	fn is_axctest(&self) -> bool {
+		self.id().starts_with("axctest") || self.id().starts_with("axct")
 	}
 	fn is_alphanet(&self) -> bool {
 		self.id().starts_with("alphanet") || self.id().starts_with("wnd")
@@ -269,18 +271,12 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_wococo(&self) -> bool {
 		self.id().starts_with("wococo") || self.id().starts_with("wco")
 	}
+	fn is_versi(&self) -> bool {
+		self.id().starts_with("versi") || self.id().starts_with("vrs")
+	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
 	}
-}
-
-// If we're using prometheus, use a registry with a prefix of `axia`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
-	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-		*registry = Registry::new_custom(Some("axia".into()), None)?;
-	}
-
-	Ok(())
 }
 
 /// Initialize the `Jeager` collector. The destination must listen
@@ -312,13 +308,6 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		FullClient<RuntimeApi, ExecutorDispatch>,
 		ChainSelection,
 	>;
-
-#[cfg(feature = "light-node")]
-type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
-
-#[cfg(feature = "light-node")]
-type LightClient<RuntimeApi, ExecutorDispatch> =
-	service::TLightClientWithBackend<Block, RuntimeApi, ExecutorDispatch, LightBackend>;
 
 #[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
@@ -353,8 +342,6 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-	set_prometheus_registry(config)?;
-
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -376,6 +363,7 @@ where
 		config.wasm_method,
 		config.default_heap_pages,
 		config.max_runtime_instances,
+		config.runtime_cache_size,
 	);
 
 	let (client, backend, keystore_container, task_manager) =
@@ -388,7 +376,11 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			task_manager.spawn_handle().spawn(
+				"telemetry",
+				Some("telemetry"),
+				Box::pin(worker.run()),
+			);
 		}
 		telemetry
 	});
@@ -423,7 +415,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
+				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
 			),
 			grandpa::SharedVoterState,
 			std::time::Duration, // slot-duration
@@ -450,8 +442,8 @@ where
 		client.clone(),
 	);
 
-	let grandpa_hard_forks = if config.chain_spec.is_axiatest() {
-		grandpa_support::axiatest_hard_forks()
+	let grandpa_hard_forks = if config.chain_spec.is_axctest() {
+		grandpa_support::axctest_hard_forks()
 	} else {
 		Vec::new()
 	};
@@ -466,7 +458,7 @@ where
 
 	let justification_import = grandpa_block_import.clone();
 
-	let babe_config = babe::Config::get_or_compute(&*client)?;
+	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
 		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
 
@@ -494,8 +486,11 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (beefy_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::channel();
+	let (beefy_commitment_link, beefy_commitment_stream) =
+		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
+	let (beefy_best_block_link, beefy_best_block_stream) =
+		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
+	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
 
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -505,11 +500,11 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone(), beefy_link);
-	let rpc_setup = shared_voter_state.clone();
-
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
+
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_links);
+	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -541,6 +536,7 @@ where
 				},
 				beefy: axia_rpc::BeefyDeps {
 					beefy_commitment_stream: beefy_commitment_stream.clone(),
+					beefy_best_block_stream: beefy_best_block_stream.clone(),
 					subscription_executor,
 				},
 			};
@@ -669,15 +665,20 @@ where
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
+///
+/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
+/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
+/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
+	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -697,7 +698,10 @@ where
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_betanet() || config.chain_spec.is_wococo() {
+		if config.chain_spec.is_betanet() ||
+			config.chain_spec.is_wococo() ||
+			config.chain_spec.is_versi()
+		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
 			// production to 1 block per hour.
@@ -724,15 +728,30 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel =
-		local_keystore.is_some() && (role.is_authority() || is_collator.is_collator());
+	let auth_or_collator = role.is_authority() || is_collator.is_collator();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let select_chain = SelectRelayChain::new(
-		basics.backend.clone(),
-		overseer_handle.clone(),
-		requires_overseer_for_chain_sel,
-		axia_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
-	);
+	let disputes_enabled = chain_spec.is_betanet() ||
+		chain_spec.is_axctest() ||
+		chain_spec.is_alphanet() ||
+		chain_spec.is_versi() ||
+		chain_spec.is_wococo();
+
+	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
+
+	let select_chain = if requires_overseer_for_chain_sel {
+		let metrics =
+			axia_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+
+		SelectRelayChain::new_disputes_aware(
+			basics.backend.clone(),
+			overseer_handle.clone(),
+			metrics,
+			disputes_enabled,
+		)
+	} else {
+		SelectRelayChain::new_longest_chain(basics.backend.clone())
+	};
 
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
@@ -752,13 +771,27 @@ where
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
-	// Note: GrandPa is pushed before the AXIA-specific protocols. This doesn't change
+	// Note: GrandPa is pushed before the Axia-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Axlib nodes.
-	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
+	let grandpa_protocol_name = grandpa::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+	config
+		.network
+		.extra_sets
+		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
-	if chain_spec.is_betanet() || chain_spec.is_wococo() {
-		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
+	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
+		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		&config.chain_spec,
+	);
+	if chain_spec.is_betanet() || chain_spec.is_wococo() || chain_spec.is_versi() {
+		config
+			.network
+			.extra_sets
+			.push(beefy_gadget::beefy_peers_set_config(beefy_protocol_name.clone()));
 	}
 
 	{
@@ -780,8 +813,8 @@ where
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
 	config.network.request_response_protocols.push(cfg);
 
-	let grandpa_hard_forks = if config.chain_spec.is_axiatest() {
-		grandpa_support::axiatest_hard_forks()
+	let grandpa_hard_forks = if config.chain_spec.is_axctest() {
+		grandpa_support::axctest_hard_forks()
 	} else {
 		Vec::new()
 	};
@@ -799,17 +832,27 @@ where
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
 
 	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
+		let offchain_workers = Arc::new(sc_offchain::OffchainWorkers::new_with_options(
 			client.clone(),
-			network.clone(),
+			sc_offchain::OffchainWorkerOptions { enable_http_requests: false },
+		));
+
+		// Start the offchain workers to have
+		task_manager.spawn_handle().spawn(
+			"offchain-notifications",
+			None,
+			sc_offchain::notification_future(
+				config.role.is_authority(),
+				client.clone(),
+				offchain_workers,
+				task_manager.spawn_handle().clone(),
+				network.clone(),
+			),
 		);
 	}
 
@@ -858,13 +901,11 @@ where
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
-		on_demand: None,
-		remote_blockchain: None,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, link_half, babe_link, beefy_link) = import_setup;
+	let (block_import, link_half, babe_link, beefy_links) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -873,14 +914,14 @@ where
 	let active_leaves =
 		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
+	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
 		use sc_network::Event;
 
 		let authority_discovery_role = if role.is_authority() {
 			sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore())
 		} else {
-			// don't publish our addresses when we're only a collator
+			// don't publish our addresses when we're not an authority (collator, cumulus, ..)
 			sc_authority_discovery::Role::Discover
 		};
 		let dht_event_stream =
@@ -902,7 +943,11 @@ where
 			prometheus_registry.clone(),
 		);
 
-		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		task_manager.spawn_handle().spawn(
+			"authority-discovery-worker",
+			Some("authority-discovery"),
+			Box::pin(worker.run()),
+		);
 		Some(service)
 	} else {
 		None
@@ -940,14 +985,21 @@ where
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
+					disputes_enabled,
+					pvf_checker_enabled,
 				},
-			)?;
+			)
+			.map_err(|e| {
+				tracing::error!("Failed to init overseer: {}", e);
+				e
+			})?;
 		let handle = Handle::new(overseer_handle.clone());
 
 		{
 			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
+				None,
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
@@ -1003,6 +1055,7 @@ where
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
+
 				async move {
 					let allychain = axia_node_core_allychains_inherent::AllychainsInherentDataProvider::create(
 						&*client_clone,
@@ -1036,7 +1089,7 @@ where
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -1044,16 +1097,18 @@ where
 	let keystore_opt =
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
-	// We currently only run the BEEFY gadget on the BetaNet and Wococo testnets.
-	if !disable_beefy && (chain_spec.is_betanet() || chain_spec.is_wococo()) {
+	// We currently only run the BEEFY gadget on the Betanet and Wococo testnets.
+	if enable_beefy && (chain_spec.is_betanet() || chain_spec.is_wococo() || chain_spec.is_versi()) {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_link,
+			signed_commitment_sender: beefy_links.0,
+			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
+			protocol_name: beefy_protocol_name,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _>(beefy_params);
@@ -1061,9 +1116,11 @@ where
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
 		if chain_spec.is_wococo() {
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager
+				.spawn_essential_handle()
+				.spawn_blocking("beefy-gadget", None, gadget);
 		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
 	}
 
@@ -1076,6 +1133,7 @@ where
 		keystore: keystore_opt,
 		local_role: role,
 		telemetry: telemetry.as_ref().map(|x| x.handle()),
+		protocol_name: grandpa_protocol_name,
 	};
 
 	let enable_grandpa = !disable_grandpa;
@@ -1117,176 +1175,16 @@ where
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("grandpa-voter", grandpa::run_grandpa_voter(grandpa_config)?);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			None,
+			grandpa::run_grandpa_voter(grandpa_config)?,
+		);
 	}
 
 	network_starter.start_network();
 
 	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
-}
-
-/// Builds a new service for a light client.
-#[cfg(feature = "light-node")]
-fn new_light<Runtime, Dispatch>(
-	mut config: Configuration,
-) -> Result<(TaskManager, RpcHandlers), Error>
-where
-	Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
-	<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
-		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
-	Dispatch: NativeExecutionDispatch + 'static,
-{
-	set_prometheus_registry(&mut config)?;
-	use sc_client_api::backend::RemoteBackend;
-
-	let telemetry = config
-		.telemetry_endpoints
-		.clone()
-		.filter(|x| !x.is_empty())
-		.map(|endpoints| -> Result<_, telemetry::Error> {
-			let worker = TelemetryWorker::new(16)?;
-			let telemetry = worker.handle().new_telemetry(endpoints);
-			Ok((worker, telemetry))
-		})
-		.transpose()?;
-
-	let (client, backend, keystore_container, mut task_manager, on_demand) =
-		service::new_light_parts::<Block, Runtime, Dispatch>(
-			&config,
-			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-		)?;
-
-	let mut telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", worker.run());
-		telemetry
-	});
-
-	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
-
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
-
-	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
-		config.transaction_pool.clone(),
-		config.prometheus_registry(),
-		task_manager.spawn_essential_handle(),
-		client.clone(),
-		on_demand.clone(),
-	));
-
-	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
-		client.clone(),
-		&(client.clone() as Arc<_>),
-		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-	let justification_import = grandpa_block_import.clone();
-
-	let (babe_block_import, babe_link) = babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
-		grandpa_block_import,
-		client.clone(),
-	)?;
-
-	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = babe::import_queue(
-		babe_link,
-		babe_block_import,
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain.clone(),
-		move |_, ()| async move {
-			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					*timestamp,
-					slot_duration,
-				);
-
-			Ok((timestamp, slot))
-		},
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-		consensus_common::NeverCanAuthor,
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-
-	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
-		backend.clone(),
-		grandpa_link.shared_authority_set().clone(),
-	));
-
-	let (network, system_rpc_tx, network_starter) =
-		service::build_network(service::BuildNetworkParams {
-			config: &config,
-			client: client.clone(),
-			transaction_pool: transaction_pool.clone(),
-			spawn_handle: task_manager.spawn_handle(),
-			import_queue,
-			on_demand: Some(on_demand.clone()),
-			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
-		})?;
-
-	let enable_grandpa = !config.disable_grandpa;
-	if enable_grandpa {
-		let name = config.network.node_name.clone();
-
-		let config = grandpa::Config {
-			gossip_duration: Duration::from_millis(1000),
-			justification_period: 512,
-			name: Some(name),
-			observer_enabled: false,
-			keystore: None,
-			local_role: config.role.clone(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
-
-		task_manager.spawn_handle().spawn_blocking(
-			"grandpa-observer",
-			grandpa::run_grandpa_observer(config, grandpa_link, network.clone())?,
-		);
-	}
-
-	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
-		);
-	}
-
-	let light_deps = axia_rpc::LightDeps {
-		remote_blockchain: backend.remote_blockchain(),
-		fetcher: on_demand.clone(),
-		client: client.clone(),
-		pool: transaction_pool.clone(),
-	};
-
-	let rpc_extensions = axia_rpc::create_light(light_deps);
-
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
-		on_demand: Some(on_demand),
-		remote_blockchain: Some(backend.remote_blockchain()),
-		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
-		task_manager: &mut task_manager,
-		config,
-		keystore: keystore_container.sync_keystore(),
-		backend,
-		transaction_pool,
-		client,
-		network,
-		system_rpc_tx,
-		telemetry: telemetry.as_mut(),
-	})?;
-
-	network_starter.start_network();
-
-	Ok((task_manager, rpc_handlers))
 }
 
 #[cfg(feature = "full-node")]
@@ -1334,123 +1232,115 @@ pub fn new_chain_ops(
 	let telemetry_worker_handle = None;
 
 	#[cfg(feature = "betanet-native")]
-	if config.chain_spec.is_betanet() || config.chain_spec.is_wococo() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; betanet_runtime, BetaNetExecutorDispatch, BetaNet)
+	if config.chain_spec.is_betanet() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; betanet_runtime, BetanetExecutorDispatch, Betanet)
 	}
 
-	#[cfg(feature = "axiatest-native")]
-	if config.chain_spec.is_axiatest() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; axiatest_runtime, AXIATESTExecutorDispatch, AXIATEST)
+	#[cfg(feature = "axctest-native")]
+	if config.chain_spec.is_axctest() {
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; axctest_runtime, AxiaTestExecutorDispatch, AxiaTest)
 	}
 
 	#[cfg(feature = "alphanet-native")]
 	if config.chain_spec.is_alphanet() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; alphanet_runtime, AlphaNetExecutorDispatch, AlphaNet)
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; alphanet_runtime, AlphanetExecutorDispatch, Alphanet)
 	}
 
 	#[cfg(feature = "axia-native")]
 	{
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; axia_runtime, AXIAExecutorDispatch, AXIA)
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; axia_runtime, AxiaExecutorDispatch, Axia)
 	}
 	#[cfg(not(feature = "axia-native"))]
 	Err(Error::NoRuntime)
 }
 
-/// Build a new light node.
-#[cfg(feature = "light-node")]
-pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), Error> {
-	#[cfg(feature = "betanet-native")]
-	if config.chain_spec.is_betanet() || config.chain_spec.is_wococo() {
-		return new_light::<betanet_runtime::RuntimeApi, BetaNetExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "axiatest-native")]
-	if config.chain_spec.is_axiatest() {
-		return new_light::<axiatest_runtime::RuntimeApi, AXIATESTExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "alphanet-native")]
-	if config.chain_spec.is_alphanet() {
-		return new_light::<alphanet_runtime::RuntimeApi, AlphaNetExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "axia-native")]
-	{
-		return new_light::<axia_runtime::RuntimeApi, AXIAExecutorDispatch>(config)
-	}
-
-	#[cfg(not(feature = "axia-native"))]
-	Err(Error::NoRuntime)
-}
-
+/// Build a full node.
+///
+/// The actual "flavor", aka if it will use `Axia`, `Betanet` or `AxiaTest` is determined based on
+/// [`IdentifyVariant`] using the chain spec.
+///
+/// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
+/// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
+/// still determined based on the role of the node. Likewise for authority discovery.
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
+	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "betanet-native")]
-	if config.chain_spec.is_betanet() || config.chain_spec.is_wococo() {
-		return new_full::<betanet_runtime::RuntimeApi, BetaNetExecutorDispatch, _>(
+	if config.chain_spec.is_betanet() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
+	{
+		return new_full::<betanet_runtime::RuntimeApi, BetanetExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
-		.map(|full| full.with_client(Client::BetaNet))
+		.map(|full| full.with_client(Client::Betanet))
 	}
 
-	#[cfg(feature = "axiatest-native")]
-	if config.chain_spec.is_axiatest() {
-		return new_full::<axiatest_runtime::RuntimeApi, AXIATESTExecutorDispatch, _>(
+	#[cfg(feature = "axctest-native")]
+	if config.chain_spec.is_axctest() {
+		return new_full::<axctest_runtime::RuntimeApi, AxiaTestExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
-		.map(|full| full.with_client(Client::AXIATEST))
+		.map(|full| full.with_client(Client::AxiaTest))
 	}
 
 	#[cfg(feature = "alphanet-native")]
 	if config.chain_spec.is_alphanet() {
-		return new_full::<alphanet_runtime::RuntimeApi, AlphaNetExecutorDispatch, _>(
+		return new_full::<alphanet_runtime::RuntimeApi, AlphanetExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
-		.map(|full| full.with_client(Client::AlphaNet))
+		.map(|full| full.with_client(Client::Alphanet))
 	}
 
 	#[cfg(feature = "axia-native")]
 	{
-		return new_full::<axia_runtime::RuntimeApi, AXIAExecutorDispatch, _>(
+		return new_full::<axia_runtime::RuntimeApi, AxiaExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
+			overseer_enable_anyways,
 			overseer_gen,
 		)
-		.map(|full| full.with_client(Client::AXIA))
+		.map(|full| full.with_client(Client::Axia))
 	}
 
 	#[cfg(not(feature = "axia-native"))]

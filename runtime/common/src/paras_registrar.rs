@@ -1,20 +1,20 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Pallet to handle parathread/allychain registration and related fund management.
+//! Pallet to handle allythread/allychain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
 use frame_support::{
@@ -24,7 +24,7 @@ use frame_support::{
 	traits::{Currency, Get, ReservableCurrency},
 };
 use frame_system::{self, ensure_root, ensure_signed};
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
+use primitives::v1::{HeadData, Id as AllyId, ValidationCode, LOWEST_PUBLIC_ID};
 use runtime_allychains::{
 	configuration, ensure_allychain,
 	paras::{self, ParaGenesisArgs},
@@ -47,7 +47,7 @@ pub struct ParaInfo<Account, Balance> {
 	pub(crate) manager: Account,
 	/// The amount reserved by the `manager` account for the registration.
 	deposit: Balance,
-	/// Whether the para registration should be locked from being controlled by the manager.
+	/// Whether the ally registration should be locked from being controlled by the manager.
 	locked: bool,
 }
 
@@ -89,6 +89,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -104,13 +105,13 @@ pub mod pallet {
 		type Origin: From<<Self as frame_system::Config>::Origin>
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
-		/// The system's currency for parathread payment.
+		/// The system's currency for allythread payment.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
-		/// Runtime hook for when a allychain and parathread swap.
+		/// Runtime hook for when a allychain and allythread swap.
 		type OnSwap: crate::traits::OnSwap;
 
-		/// The deposit to be paid to run a parathread.
+		/// The deposit to be paid to run a allythread.
 		/// This should include the cost for storing the genesis head and validation code.
 		#[pallet::constant]
 		type ParaDeposit: Get<BalanceOf<Self>>;
@@ -126,9 +127,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Registered(ParaId, T::AccountId),
-		Deregistered(ParaId),
-		Reserved(ParaId, T::AccountId),
+		Registered(AllyId, T::AccountId),
+		Deregistered(AllyId),
+		Reserved(AllyId, T::AccountId),
 	}
 
 	#[pallet::error]
@@ -139,58 +140,60 @@ pub mod pallet {
 		AlreadyRegistered,
 		/// The caller is not the owner of this Id.
 		NotOwner,
-		/// Invalid para code size.
+		/// Invalid ally code size.
 		CodeTooLarge,
-		/// Invalid para head data size.
+		/// Invalid ally head data size.
 		HeadDataTooLarge,
-		/// Para is not a Allychain.
+		/// Ally is not a Allychain.
 		NotAllychain,
-		/// Para is not a Parathread.
-		NotParathread,
+		/// Ally is not a Allythread.
+		NotAllythread,
 		/// Cannot deregister para
 		CannotDeregister,
-		/// Cannot schedule downgrade of allychain to parathread
+		/// Cannot schedule downgrade of allychain to allythread
 		CannotDowngrade,
-		/// Cannot schedule upgrade of parathread to allychain
+		/// Cannot schedule upgrade of allythread to allychain
 		CannotUpgrade,
-		/// Para is locked from manipulation by the manager. Must use allychain or relay chain governance.
+		/// Ally is locked from manipulation by the manager. Must use allychain or relay chain governance.
 		ParaLocked,
 		/// The ID given for registration has not been reserved.
 		NotReserved,
+		/// Registering allychain with empty code is not allowed.
+		EmptyCode,
 	}
 
 	/// Pending swap operations.
 	#[pallet::storage]
-	pub(super) type PendingSwap<T> = StorageMap<_, Twox64Concat, ParaId, ParaId>;
+	pub(super) type PendingSwap<T> = StorageMap<_, Twox64Concat, AllyId, AllyId>;
 
-	/// Amount held on deposit for each para and the original depositor.
+	/// Amount held on deposit for each ally and the original depositor.
 	///
 	/// The given account ID is responsible for registering the code and initial head data, but may only do
 	/// so if it isn't yet registered. (After that, it's up to governance to do so.)
 	#[pallet::storage]
 	pub type Paras<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
+		StorageMap<_, Twox64Concat, AllyId, ParaInfo<T::AccountId, BalanceOf<T>>>;
 
-	/// The next free `ParaId`.
+	/// The next free `AllyId`.
 	#[pallet::storage]
-	pub type NextFreeParaId<T> = StorageValue<_, ParaId, ValueQuery>;
+	pub type NextFreeAllyId<T> = StorageValue<_, AllyId, ValueQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
-		pub next_free_para_id: ParaId,
+		pub next_free_ally_id: AllyId,
 	}
 
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
 		fn default() -> Self {
-			GenesisConfig { next_free_para_id: LOWEST_PUBLIC_ID }
+			GenesisConfig { next_free_ally_id: LOWEST_PUBLIC_ID }
 		}
 	}
 
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
-			NextFreeParaId::<T>::put(self.next_free_para_id);
+			NextFreeAllyId::<T>::put(self.next_free_ally_id);
 		}
 	}
 
@@ -199,24 +202,24 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Register head data and validation code for a reserved Para Id.
+		/// Register head data and validation code for a reserved Ally Id.
 		///
 		/// ## Arguments
 		/// - `origin`: Must be called by a `Signed` origin.
-		/// - `id`: The para ID. Must be owned/managed by the `origin` signing account.
+		/// - `id`: The ally ID. Must be owned/managed by the `origin` signing account.
 		/// - `genesis_head`: The genesis head data of the allychain/thread.
 		/// - `validation_code`: The initial validation code of the allychain/thread.
 		///
 		/// ## Deposits/Fees
 		/// The origin signed account must reserve a corresponding deposit for the registration. Anything already
-		/// reserved previously for this para ID is accounted for.
+		/// reserved previously for this ally ID is accounted for.
 		///
 		/// ## Events
 		/// The `Registered` event is emitted in case of success.
 		#[pallet::weight(<T as Config>::WeightInfo::register())]
 		pub fn register(
 			origin: OriginFor<T>,
-			id: ParaId,
+			id: AllyId,
 			genesis_head: HeadData,
 			validation_code: ValidationCode,
 		) -> DispatchResult {
@@ -225,18 +228,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force the registration of a Para Id on the relay chain.
+		/// Force the registration of a Ally Id on the relay chain.
 		///
 		/// This function must be called by a Root origin.
 		///
-		/// The deposit taken can be specified for this registration. Any `ParaId`
+		/// The deposit taken can be specified for this registration. Any `AllyId`
 		/// can be registered, including sub-1000 IDs which are System Allychains.
 		#[pallet::weight(<T as Config>::WeightInfo::force_register())]
 		pub fn force_register(
 			origin: OriginFor<T>,
 			who: T::AccountId,
 			deposit: BalanceOf<T>,
-			id: ParaId,
+			id: AllyId,
 			genesis_head: HeadData,
 			validation_code: ValidationCode,
 		) -> DispatchResult {
@@ -244,48 +247,48 @@ pub mod pallet {
 			Self::do_register(who, Some(deposit), id, genesis_head, validation_code, false)
 		}
 
-		/// Deregister a Para Id, freeing all data and returning any deposit.
+		/// Deregister a Ally Id, freeing all data and returning any deposit.
 		///
-		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
+		/// The caller must be Root, the `para` owner, or the `para` itself. The ally must be a allythread.
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
-		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
+		pub fn deregister(origin: OriginFor<T>, id: AllyId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 			Self::do_deregister(id)
 		}
 
-		/// Swap a allychain with another allychain or parathread.
+		/// Swap a allychain with another allychain or allythread.
 		///
 		/// The origin must be Root, the `para` owner, or the `para` itself.
 		///
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
 		/// the swap will be stored in the pending swaps map, ready for a later confirmatory swap.
 		///
-		/// The `ParaId`s remain mapped to the same head data and code so external code can rely on
-		/// `ParaId` to be a long-term identifier of a notional "allychain". However, their
-		/// scheduling info (i.e. whether they're a parathread or allychain), auction information
+		/// The `AllyId`s remain mapped to the same head data and code so external code can rely on
+		/// `AllyId` to be a long-term identifier of a notional "allychain". However, their
+		/// scheduling info (i.e. whether they're a allythread or allychain), auction information
 		/// and the auction deposit are switched.
 		#[pallet::weight(<T as Config>::WeightInfo::swap())]
-		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
+		pub fn swap(origin: OriginFor<T>, id: AllyId, other: AllyId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 
 			if PendingSwap::<T>::get(other) == Some(id) {
 				if let Some(other_lifecycle) = paras::Pallet::<T>::lifecycle(other) {
 					if let Some(id_lifecycle) = paras::Pallet::<T>::lifecycle(id) {
-						// identify which is a allychain and which is a parathread
-						if id_lifecycle.is_allychain() && other_lifecycle.is_parathread() {
+						// identify which is a allychain and which is a allythread
+						if id_lifecycle.is_allychain() && other_lifecycle.is_allythread() {
 							// We check that both paras are in an appropriate lifecycle for a swap,
 							// so these should never fail.
 							let res1 = runtime_allychains::schedule_allychain_downgrade::<T>(id);
 							debug_assert!(res1.is_ok());
-							let res2 = runtime_allychains::schedule_parathread_upgrade::<T>(other);
+							let res2 = runtime_allychains::schedule_allythread_upgrade::<T>(other);
 							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
-						} else if id_lifecycle.is_parathread() && other_lifecycle.is_allychain() {
+						} else if id_lifecycle.is_allythread() && other_lifecycle.is_allychain() {
 							// We check that both paras are in an appropriate lifecycle for a swap,
 							// so these should never fail.
 							let res1 = runtime_allychains::schedule_allychain_downgrade::<T>(other);
 							debug_assert!(res1.is_ok());
-							let res2 = runtime_allychains::schedule_parathread_upgrade::<T>(id);
+							let res2 = runtime_allychains::schedule_allythread_upgrade::<T>(id);
 							debug_assert!(res2.is_ok());
 							T::OnSwap::on_swap(id, other);
 						}
@@ -301,24 +304,24 @@ pub mod pallet {
 		}
 
 		/// Remove a manager lock from a para. This will allow the manager of a
-		/// previously locked para to deregister or swap a para without using governance.
+		/// previously locked ally to deregister or swap a ally without using governance.
 		///
 		/// Can only be called by the Root origin.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+		pub fn force_remove_lock(origin: OriginFor<T>, para: AllyId) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::remove_lock(para);
 			Ok(())
 		}
 
-		/// Reserve a Para Id on the relay chain.
+		/// Reserve a Ally Id on the relay chain.
 		///
-		/// This function will reserve a new Para Id to be owned/managed by the origin account.
+		/// This function will reserve a new Ally Id to be owned/managed by the origin account.
 		/// The origin account is able to register head data and validation code using `register` to create
-		/// a parathread. Using the Slots pallet, a parathread can then be upgraded to get a allychain slot.
+		/// a allythread. Using the Slots pallet, a allythread can then be upgraded to get a allychain slot.
 		///
 		/// ## Arguments
-		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new para ID.
+		/// - `origin`: Must be called by a `Signed` origin. Becomes the manager/owner of the new ally ID.
 		///
 		/// ## Deposits/Fees
 		/// The origin must reserve a deposit of `ParaDeposit` for the registration.
@@ -328,9 +331,9 @@ pub mod pallet {
 		#[pallet::weight(<T as Config>::WeightInfo::reserve())]
 		pub fn reserve(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
+			let id = NextFreeAllyId::<T>::get().max(LOWEST_PUBLIC_ID);
 			Self::do_reserve(who, None, id)?;
-			NextFreeParaId::<T>::set(id + 1);
+			NextFreeAllyId::<T>::set(id + 1);
 			Ok(())
 		}
 	}
@@ -339,72 +342,72 @@ pub mod pallet {
 impl<T: Config> Registrar for Pallet<T> {
 	type AccountId = T::AccountId;
 
-	/// Return the manager `AccountId` of a para if one exists.
-	fn manager_of(id: ParaId) -> Option<T::AccountId> {
+	/// Return the manager `AccountId` of a ally if one exists.
+	fn manager_of(id: AllyId) -> Option<T::AccountId> {
 		Some(Paras::<T>::get(id)?.manager)
 	}
 
-	// All allychains. Ordered ascending by ParaId. Parathreads are not included.
-	fn allychains() -> Vec<ParaId> {
+	// All allychains. Ordered ascending by AllyId. Allythreads are not included.
+	fn allychains() -> Vec<AllyId> {
 		paras::Pallet::<T>::allychains()
 	}
 
-	// Return if a para is a parathread
-	fn is_parathread(id: ParaId) -> bool {
-		paras::Pallet::<T>::is_parathread(id)
+	// Return if a ally is a allythread
+	fn is_allythread(id: AllyId) -> bool {
+		paras::Pallet::<T>::is_allythread(id)
 	}
 
-	// Return if a para is a allychain
-	fn is_allychain(id: ParaId) -> bool {
+	// Return if a ally is a allychain
+	fn is_allychain(id: AllyId) -> bool {
 		paras::Pallet::<T>::is_allychain(id)
 	}
 
 	// Apply a lock to the allychain.
-	fn apply_lock(id: ParaId) {
+	fn apply_lock(id: AllyId) {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
 	}
 
 	// Apply a lock to the allychain.
-	fn remove_lock(id: ParaId) {
+	fn remove_lock(id: AllyId) {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
 	}
 
-	// Register a Para ID under control of `manager`.
+	// Register a Ally ID under control of `manager`.
 	//
-	// Note this is a backend registration API, so verification of ParaId
+	// Note this is a backend registration API, so verification of AllyId
 	// is not done here to prevent.
 	fn register(
 		manager: T::AccountId,
-		id: ParaId,
+		id: AllyId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 	) -> DispatchResult {
 		Self::do_register(manager, None, id, genesis_head, validation_code, false)
 	}
 
-	// Deregister a Para ID, free any data, and return any deposits.
-	fn deregister(id: ParaId) -> DispatchResult {
+	// Deregister a Ally ID, free any data, and return any deposits.
+	fn deregister(id: AllyId) -> DispatchResult {
 		Self::do_deregister(id)
 	}
 
-	// Upgrade a registered parathread into a allychain.
-	fn make_allychain(id: ParaId) -> DispatchResult {
-		// Para backend should think this is a parathread...
+	// Upgrade a registered allythread into a allychain.
+	fn make_allychain(id: AllyId) -> DispatchResult {
+		// Ally backend should think this is a allythread...
 		ensure!(
-			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread),
-			Error::<T>::NotParathread
+			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Allythread),
+			Error::<T>::NotAllythread
 		);
-		runtime_allychains::schedule_parathread_upgrade::<T>(id)
+		runtime_allychains::schedule_allythread_upgrade::<T>(id)
 			.map_err(|_| Error::<T>::CannotUpgrade)?;
-		// Once a para has upgraded to a allychain, it can no longer be managed by the owner.
-		// Intentionally, the flag stays with the para even after downgrade.
+		// Once a ally has upgraded to a allychain, it can no longer be managed by the owner.
+		// Intentionally, the flag stays with the ally even after downgrade.
 		Self::apply_lock(id);
 		Ok(())
 	}
 
-	// Downgrade a registered para into a parathread.
-	fn make_parathread(id: ParaId) -> DispatchResult {
-		// Para backend should think this is a allychain...
+	// Downgrade a registered ally into a allythread.
+	fn make_allythread(id: AllyId) -> DispatchResult {
+		// Ally backend should think this is a allychain...
 		ensure!(
 			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Allychain),
 			Error::<T>::NotAllychain
@@ -442,7 +445,7 @@ impl<T: Config> Pallet<T> {
 	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(
 		origin: <T as frame_system::Config>::Origin,
-		id: ParaId,
+		id: AllyId,
 	) -> DispatchResult {
 		ensure_signed(origin.clone())
 			.map_err(|e| e.into())
@@ -453,7 +456,7 @@ impl<T: Config> Pallet<T> {
 				Ok(())
 			})
 			.or_else(|_| -> DispatchResult {
-				// Else check if para origin...
+				// Else check if ally origin...
 				let caller_id = ensure_allychain(<T as Config>::Origin::from(origin.clone()))?;
 				ensure!(caller_id == id, Error::<T>::NotOwner);
 				Ok(())
@@ -467,7 +470,7 @@ impl<T: Config> Pallet<T> {
 	fn do_reserve(
 		who: T::AccountId,
 		deposit_override: Option<BalanceOf<T>>,
-		id: ParaId,
+		id: AllyId,
 	) -> DispatchResult {
 		ensure!(!Paras::<T>::contains_key(id), Error::<T>::AlreadyRegistered);
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
@@ -481,12 +484,12 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Attempt to register a new Para Id under management of `who` in the
+	/// Attempt to register a new Ally Id under management of `who` in the
 	/// system with the given information.
 	fn do_register(
 		who: T::AccountId,
 		deposit_override: Option<BalanceOf<T>>,
-		id: ParaId,
+		id: AllyId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 		ensure_reserved: bool,
@@ -512,19 +515,19 @@ impl<T: Config> Pallet<T> {
 		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
-		// We check above that para has no lifecycle, so this should not fail.
+		// We check above that ally has no lifecycle, so this should not fail.
 		let res = runtime_allychains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
 		Self::deposit_event(Event::<T>::Registered(id, who));
 		Ok(())
 	}
 
-	/// Deregister a Para Id, freeing all data returning any deposit.
-	fn do_deregister(id: ParaId) -> DispatchResult {
+	/// Deregister a Ally Id, freeing all data returning any deposit.
+	fn do_deregister(id: AllyId) -> DispatchResult {
 		match paras::Pallet::<T>::lifecycle(id) {
-			// Para must be a parathread, or not exist at all.
-			Some(ParaLifecycle::Parathread) | None => {},
-			_ => return Err(Error::<T>::NotParathread.into()),
+			// Ally must be a allythread, or not exist at all.
+			Some(ParaLifecycle::Allythread) | None => {},
+			_ => return Err(Error::<T>::NotAllythread.into()),
 		}
 		runtime_allychains::schedule_para_cleanup::<T>(id)
 			.map_err(|_| Error::<T>::CannotDeregister)?;
@@ -547,6 +550,7 @@ impl<T: Config> Pallet<T> {
 		allychain: bool,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
+		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
 		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
 		ensure!(
 			genesis_head.0.len() <= config.max_head_data_size as usize,
@@ -575,11 +579,12 @@ mod tests {
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
 	use primitives::v1::{Balance, BlockNumber, Header};
-	use runtime_allychains::{configuration, shared};
+	use runtime_allychains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup},
+		transaction_validity::TransactionPriority,
 		Perbill,
 	};
 
@@ -595,11 +600,20 @@ mod tests {
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Configuration: configuration::{Pallet, Call, Storage, Config<T>},
-			Allychains: paras::{Pallet, Origin, Call, Storage, Config, Event},
+			Allychains: paras::{Pallet, Call, Storage, Config, Event},
 			ParasShared: shared::{Pallet, Call, Storage},
 			Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
+			AllychainsOrigin: origin::{Pallet, Origin},
 		}
 	);
+
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+	where
+		Call: From<C>,
+	{
+		type Extrinsic = UncheckedExtrinsic;
+		type OverarchingCall = Call;
+	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
@@ -634,6 +648,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
 	parameter_types! {
@@ -654,10 +669,17 @@ mod tests {
 
 	impl shared::Config for Test {}
 
+	impl origin::Config for Test {}
+
+	parameter_types! {
+		pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	}
+
 	impl paras::Config for Test {
-		type Origin = Origin;
 		type Event = Event;
 		type WeightInfo = paras::TestWeightInfo;
+		type UnsignedPriority = ParasUnsignedPriority;
+		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 
 	impl configuration::Config for Test {
@@ -740,7 +762,7 @@ mod tests {
 		ValidationCode(validation_code)
 	}
 
-	fn para_origin(id: ParaId) -> Origin {
+	fn para_origin(id: AllyId) -> Origin {
 		runtime_allychains::Origin::Allychain(id).into()
 	}
 
@@ -755,47 +777,47 @@ mod tests {
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(PendingSwap::<Test>::get(&ParaId::from(0u32)), None);
-			assert_eq!(Paras::<Test>::get(&ParaId::from(0u32)), None);
+			assert_eq!(PendingSwap::<Test>::get(&AllyId::from(0u32)), None);
+			assert_eq!(Paras::<Test>::get(&AllyId::from(0u32)), None);
 		});
 	}
 
 	#[test]
 	fn end_to_end_scenario_works() {
 		new_test_ext().execute_with(|| {
-			let para_id = LOWEST_PUBLIC_ID;
+			let ally_id = LOWEST_PUBLIC_ID;
 			run_to_block(1);
-			// first para is not yet registered
-			assert!(!Allychains::is_parathread(para_id));
-			// We register the Para ID
+			// first ally is not yet registered
+			assert!(!Allychains::is_allythread(ally_id));
+			// We register the Ally ID
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			// It is now a parathread.
-			assert!(Allychains::is_parathread(para_id));
-			assert!(!Allychains::is_allychain(para_id));
-			// Some other external process will elevate parathread to allychain
-			assert_ok!(Registrar::make_allychain(para_id));
+			// It is now a allythread.
+			assert!(Allychains::is_allythread(ally_id));
+			assert!(!Allychains::is_allychain(ally_id));
+			// Some other external process will elevate allythread to allychain
+			assert_ok!(Registrar::make_allychain(ally_id));
 			run_to_session(4);
 			// It is now a allychain.
-			assert!(!Allychains::is_parathread(para_id));
-			assert!(Allychains::is_allychain(para_id));
-			// Turn it back into a parathread
-			assert_ok!(Registrar::make_parathread(para_id));
+			assert!(!Allychains::is_allythread(ally_id));
+			assert!(Allychains::is_allychain(ally_id));
+			// Turn it back into a allythread
+			assert_ok!(Registrar::make_allythread(ally_id));
 			run_to_session(6);
-			assert!(Allychains::is_parathread(para_id));
-			assert!(!Allychains::is_allychain(para_id));
+			assert!(Allychains::is_allythread(ally_id));
+			assert!(!Allychains::is_allychain(ally_id));
 			// Deregister it
-			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
+			assert_ok!(Registrar::deregister(Origin::root(), ally_id,));
 			run_to_session(8);
 			// It is nothing
-			assert!(!Allychains::is_parathread(para_id));
-			assert!(!Allychains::is_allychain(para_id));
+			assert!(!Allychains::is_allythread(ally_id));
+			assert!(!Allychains::is_allychain(ally_id));
 		});
 	}
 
@@ -803,18 +825,18 @@ mod tests {
 	fn register_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Allychains::is_parathread(para_id));
+			let ally_id = LOWEST_PUBLIC_ID;
+			assert!(!Allychains::is_allythread(ally_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Allychains::is_parathread(para_id));
+			assert!(Allychains::is_allythread(ally_id));
 			assert_eq!(
 				Balances::reserved_balance(&1),
 				<Test as Config>::ParaDeposit::get() +
@@ -826,12 +848,12 @@ mod tests {
 	#[test]
 	fn register_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			let para_id = LOWEST_PUBLIC_ID;
+			let ally_id = LOWEST_PUBLIC_ID;
 
 			assert_noop!(
 				Registrar::register(
 					Origin::signed(1),
-					para_id,
+					ally_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
 				),
@@ -844,7 +866,7 @@ mod tests {
 			assert_noop!(
 				Registrar::register(
 					Origin::signed(2),
-					para_id,
+					ally_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
 				),
@@ -853,20 +875,20 @@ mod tests {
 
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				test_genesis_head(max_head_size() as usize),
 				test_validation_code(max_code_size() as usize),
 			));
 
 			run_to_session(2);
 
-			assert_ok!(Registrar::deregister(Origin::root(), para_id));
+			assert_ok!(Registrar::deregister(Origin::root(), ally_id));
 
 			// Can't do it again
 			assert_noop!(
 				Registrar::register(
 					Origin::signed(1),
-					para_id,
+					ally_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
 				),
@@ -878,7 +900,7 @@ mod tests {
 			assert_noop!(
 				Registrar::register(
 					Origin::signed(2),
-					para_id + 1,
+					ally_id + 1,
 					test_genesis_head((max_head_size() + 1) as usize),
 					test_validation_code(max_code_size() as usize),
 				),
@@ -889,7 +911,7 @@ mod tests {
 			assert_noop!(
 				Registrar::register(
 					Origin::signed(2),
-					para_id + 1,
+					ally_id + 1,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code((max_code_size() + 1) as usize),
 				),
@@ -908,20 +930,20 @@ mod tests {
 	fn deregister_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Allychains::is_parathread(para_id));
+			let ally_id = LOWEST_PUBLIC_ID;
+			assert!(!Allychains::is_allythread(ally_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Allychains::is_parathread(para_id));
-			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
+			assert!(Allychains::is_allythread(ally_id));
+			assert_ok!(Registrar::deregister(Origin::root(), ally_id,));
 			run_to_session(4);
-			assert!(paras::Pallet::<Test>::lifecycle(para_id).is_none());
+			assert!(paras::Pallet::<Test>::lifecycle(ally_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
 		});
 	}
@@ -930,25 +952,25 @@ mod tests {
 	fn deregister_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			let para_id = LOWEST_PUBLIC_ID;
-			assert!(!Allychains::is_parathread(para_id));
+			let ally_id = LOWEST_PUBLIC_ID;
+			assert!(!Allychains::is_allythread(ally_id));
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
-			assert!(Allychains::is_parathread(para_id));
+			assert!(Allychains::is_allythread(ally_id));
 			// Owner check
-			assert_noop!(Registrar::deregister(Origin::signed(2), para_id,), BadOrigin);
-			assert_ok!(Registrar::make_allychain(para_id));
+			assert_noop!(Registrar::deregister(Origin::signed(2), ally_id,), BadOrigin);
+			assert_ok!(Registrar::make_allychain(ally_id));
 			run_to_session(4);
 			// Cant directly deregister allychain
 			assert_noop!(
-				Registrar::deregister(Origin::root(), para_id,),
-				Error::<Test>::NotParathread
+				Registrar::deregister(Origin::root(), ally_id,),
+				Error::<Test>::NotAllythread
 			);
 		});
 	}
@@ -982,9 +1004,9 @@ mod tests {
 
 			// Roles are as we expect
 			assert!(Allychains::is_allychain(para_1));
-			assert!(!Allychains::is_parathread(para_1));
+			assert!(!Allychains::is_allythread(para_1));
 			assert!(!Allychains::is_allychain(para_2));
-			assert!(Allychains::is_parathread(para_2));
+			assert!(Allychains::is_allythread(para_2));
 
 			// Both paras initiate a swap
 			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
@@ -992,8 +1014,8 @@ mod tests {
 
 			run_to_session(6);
 
-			// Deregister a parathread that was originally a allychain
-			assert_eq!(Allychains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
+			// Deregister a allythread that was originally a allychain
+			assert_eq!(Allychains::lifecycle(para_1), Some(ParaLifecycle::Allythread));
 			assert_ok!(Registrar::deregister(
 				runtime_allychains::Origin::Allychain(para_1).into(),
 				para_1
@@ -1003,9 +1025,9 @@ mod tests {
 
 			// Roles are swapped
 			assert!(!Allychains::is_allychain(para_1));
-			assert!(Allychains::is_parathread(para_1));
+			assert!(Allychains::is_allythread(para_1));
 			assert!(Allychains::is_allychain(para_2));
-			assert!(!Allychains::is_parathread(para_2));
+			assert!(!Allychains::is_allythread(para_2));
 		});
 	}
 
@@ -1015,26 +1037,26 @@ mod tests {
 			run_to_block(1);
 
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
-			let para_id = LOWEST_PUBLIC_ID;
+			let ally_id = LOWEST_PUBLIC_ID;
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
-				para_id,
+				ally_id,
 				vec![1; 3].into(),
 				vec![1, 2, 3].into(),
 			));
 
 			// Owner can call swap
-			assert_ok!(Registrar::swap(Origin::signed(1), para_id, para_id + 1));
+			assert_ok!(Registrar::swap(Origin::signed(1), ally_id, ally_id + 1));
 
 			// 2 session changes to fully onboard.
 			run_to_session(2);
-			assert_eq!(Allychains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
+			assert_eq!(Allychains::lifecycle(ally_id), Some(ParaLifecycle::Allythread));
 
 			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::make_allychain(para_id));
+			assert_ok!(Registrar::make_allychain(ally_id));
 
 			// Owner cannot call swap anymore
-			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
+			assert_noop!(Registrar::swap(Origin::signed(1), ally_id, ally_id + 2), BadOrigin);
 		});
 	}
 }
@@ -1058,8 +1080,8 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_para<T: Config>(id: u32) -> ParaId {
-		let para = ParaId::from(id);
+	fn register_para<T: Config>(id: u32) -> AllyId {
+		let ally = AllyId::from(id);
 		let genesis_head = Registrar::<T>::worst_head_data();
 		let validation_code = Registrar::<T>::worst_validation_code();
 		let caller: T::AccountId = whitelisted_caller();
@@ -1098,7 +1120,7 @@ mod benchmarking {
 		}
 
 		register {
-			let para = LOWEST_PUBLIC_ID;
+			let ally = LOWEST_PUBLIC_ID;
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 			let caller: T::AccountId = whitelisted_caller();
@@ -1109,13 +1131,13 @@ mod benchmarking {
 			assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Allythread));
 		}
 
 		force_register {
 			let manager: T::AccountId = account("manager", 0, 0);
 			let deposit = 0u32.into();
-			let para = ParaId::from(69);
+			let ally = AllyId::from(69);
 			let genesis_head = Registrar::<T>::worst_head_data();
 			let validation_code = Registrar::<T>::worst_validation_code();
 		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
@@ -1123,11 +1145,11 @@ mod benchmarking {
 			assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Allythread));
 		}
 
 		deregister {
-			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
+			let ally = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			next_scheduled_session::<T>();
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
@@ -1136,7 +1158,7 @@ mod benchmarking {
 		}
 
 		swap {
-			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
+			let allythread = register_para::<T>(LOWEST_PUBLIC_ID.into());
 			let allychain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 
 			let allychain_origin = para_origin(allychain.into());
@@ -1149,16 +1171,16 @@ mod benchmarking {
 			next_scheduled_session::<T>();
 
 			assert_eq!(paras::Pallet::<T>::lifecycle(allychain), Some(ParaLifecycle::Allychain));
-			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(allythread), Some(ParaLifecycle::Allythread));
 
 			let caller: T::AccountId = whitelisted_caller();
-			Registrar::<T>::swap(allychain_origin.into(), allychain, parathread)?;
-		}: _(RawOrigin::Signed(caller.clone()), parathread, allychain)
+			Registrar::<T>::swap(allychain_origin.into(), allychain, allythread)?;
+		}: _(RawOrigin::Signed(caller.clone()), allythread, allychain)
 		verify {
 			next_scheduled_session::<T>();
 			// Swapped!
-			assert_eq!(paras::Pallet::<T>::lifecycle(allychain), Some(ParaLifecycle::Parathread));
-			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Allychain));
+			assert_eq!(paras::Pallet::<T>::lifecycle(allychain), Some(ParaLifecycle::Allythread));
+			assert_eq!(paras::Pallet::<T>::lifecycle(allythread), Some(ParaLifecycle::Allychain));
 		}
 
 		impl_benchmark_test_suite!(

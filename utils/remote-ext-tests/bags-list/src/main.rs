@@ -1,56 +1,142 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Remote tests.
+//! Remote tests for bags-list pallet.
 
-use structopt::StructOpt;
+use clap::{ArgEnum, Parser};
+use std::convert::TryInto;
 
-mod voter_bags;
+#[derive(Clone, Debug, ArgEnum)]
+#[clap(rename_all = "PascalCase")]
+enum Command {
+	CheckMigration,
+	SanityCheck,
+	Snapshot,
+}
 
-#[derive(StructOpt)]
+#[derive(Clone, Debug, ArgEnum)]
+#[clap(rename_all = "PascalCase")]
 enum Runtime {
-	AXIATEST,
+	Axia,
+	AxiaTest,
+	Alphanet,
 }
 
-impl std::str::FromStr for Runtime {
-	type Err = &'static str;
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		match s.to_lowercase().as_str() {
-			"axiatest" => Ok(Runtime::AXIATEST),
-			_ => Err("wrong Runtime: can be 'axia' or 'axiatest'."),
-		}
-	}
-}
-
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Cli {
-	#[structopt(long, default_value = "wss://rpc.axiatest.io")]
+	#[clap(long, short, default_value = "wss://axctest-rpc.axia.io:443")]
 	uri: String,
-	#[structopt(long, short, default_value = "axiatest")]
+	#[clap(long, short, ignore_case = true, arg_enum, default_value = "axctest")]
 	runtime: Runtime,
+	#[clap(long, short, ignore_case = true, arg_enum, default_value = "SanityCheck")]
+	command: Command,
+	#[clap(long, short)]
+	snapshot_limit: Option<usize>,
 }
 
 #[tokio::main]
 async fn main() {
-	let options = Cli::from_args();
+	let options = Cli::parse();
+	sp_tracing::try_init_simple();
+
+	log::info!(
+		target: "remote-ext-tests",
+		"using runtime {:?} / command: {:?}",
+		options.runtime,
+		options.command
+	);
+
+	use pallet_bags_list_remote_tests::*;
 	match options.runtime {
-		Runtime::AXIATEST => {
-			use axiatest_runtime::{constants::currency::UNITS, Block, Runtime};
-			voter_bags::test_voter_bags_migration::<Runtime, Block>(
-				UNITS as u64,
+		Runtime::Axia => sp_core::crypto::set_default_ss58_version(
+			<axia_runtime::Runtime as frame_system::Config>::SS58Prefix::get()
+				.try_into()
+				.unwrap(),
+		),
+		Runtime::AxiaTest => sp_core::crypto::set_default_ss58_version(
+			<axctest_runtime::Runtime as frame_system::Config>::SS58Prefix::get()
+				.try_into()
+				.unwrap(),
+		),
+		Runtime::Alphanet => sp_core::crypto::set_default_ss58_version(
+			<alphanet_runtime::Runtime as frame_system::Config>::SS58Prefix::get()
+				.try_into()
+				.unwrap(),
+		),
+	};
+
+	match (options.runtime, options.command) {
+		(Runtime::AxiaTest, Command::CheckMigration) => {
+			use axctest_runtime::{Block, Runtime};
+			use axctest_runtime_constants::currency::UNITS;
+			migration::execute::<Runtime, Block>(UNITS as u64, "AXCT", options.uri.clone()).await;
+		},
+		(Runtime::AxiaTest, Command::SanityCheck) => {
+			use axctest_runtime::{Block, Runtime};
+			use axctest_runtime_constants::currency::UNITS;
+			sanity_check::execute::<Runtime, Block>(UNITS as u64, "AXCT", options.uri.clone()).await;
+		},
+		(Runtime::AxiaTest, Command::Snapshot) => {
+			use axctest_runtime::{Block, Runtime};
+			use axctest_runtime_constants::currency::UNITS;
+			snapshot::execute::<Runtime, Block>(
+				options.snapshot_limit,
+				UNITS.try_into().unwrap(),
+				options.uri.clone(),
+			)
+			.await;
+		},
+
+		(Runtime::Alphanet, Command::CheckMigration) => {
+			use alphanet_runtime::{Block, Runtime};
+			use alphanet_runtime_constants::currency::UNITS;
+			migration::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
+		},
+		(Runtime::Alphanet, Command::SanityCheck) => {
+			use alphanet_runtime::{Block, Runtime};
+			use alphanet_runtime_constants::currency::UNITS;
+			sanity_check::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
+		},
+		(Runtime::Alphanet, Command::Snapshot) => {
+			use alphanet_runtime::{Block, Runtime};
+			use alphanet_runtime_constants::currency::UNITS;
+			snapshot::execute::<Runtime, Block>(
+				options.snapshot_limit,
+				UNITS.try_into().unwrap(),
+				options.uri.clone(),
+			)
+			.await;
+		},
+
+		(Runtime::Axia, Command::CheckMigration) => {
+			use axia_runtime::{Block, Runtime};
+			use axia_runtime_constants::currency::UNITS;
+			migration::execute::<Runtime, Block>(UNITS as u64, "AXC", options.uri.clone()).await;
+		},
+		(Runtime::Axia, Command::SanityCheck) => {
+			use axia_runtime::{Block, Runtime};
+			use axia_runtime_constants::currency::UNITS;
+			sanity_check::execute::<Runtime, Block>(UNITS as u64, "AXC", options.uri.clone()).await;
+		},
+		(Runtime::Axia, Command::Snapshot) => {
+			use axia_runtime::{Block, Runtime};
+			use axia_runtime_constants::currency::UNITS;
+			snapshot::execute::<Runtime, Block>(
+				options.snapshot_limit,
+				UNITS.try_into().unwrap(),
 				options.uri.clone(),
 			)
 			.await;

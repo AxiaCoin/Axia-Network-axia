@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
 	collections::{HashMap, HashSet},
@@ -39,9 +39,9 @@ use axia_node_network_protocol::{
 	request_response::{v1, IncomingRequest, OutgoingRequest, Requests},
 };
 use axia_node_primitives::ErasureChunk;
-use axia_primitives::v1::{
-	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
-	ValidatorIndex,
+use axia_primitives::{
+	v1::{CandidateHash, CoreState, GroupIndex, Hash, Id as AllyId, ScheduledCore, ValidatorIndex},
+	v2::SessionInfo,
 };
 use axia_subsystem::{
 	messages::{
@@ -89,8 +89,8 @@ pub struct TestState {
 impl Default for TestState {
 	fn default() -> Self {
 		let relay_chain: Vec<_> = (1u8..10).map(Hash::repeat_byte).collect();
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = AllyId::from(1);
+		let chain_b = AllyId::from(2);
 
 		let chain_ids = vec![chain_a, chain_b];
 
@@ -105,8 +105,8 @@ impl Default for TestState {
 			cores.insert(
 				relay_chain[0],
 				vec![
-					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
-					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[1], collator: None }),
+					CoreState::Scheduled(ScheduledCore { ally_id: chain_ids[0], collator: None }),
+					CoreState::Scheduled(ScheduledCore { ally_id: chain_ids[1], collator: None }),
 				],
 			);
 
@@ -119,10 +119,10 @@ impl Default for TestState {
 				let (p_cores, p_chunks): (Vec<_>, Vec<_>) = chain_ids
 					.iter()
 					.enumerate()
-					.map(|(i, para_id)| {
+					.map(|(i, ally_id)| {
 						let (core, chunk) = OccupiedCoreBuilder {
 							group_responsible: GroupIndex(i as _),
-							para_id: *para_id,
+							ally_id: *ally_id,
 							relay_parent: relay_parent.clone(),
 						}
 						.build();
@@ -167,7 +167,7 @@ impl TestState {
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
 	async fn run_inner(mut self, mut harness: TestHarness) {
-		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
+		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block):
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
 			advanced.next();
@@ -197,13 +197,14 @@ impl TestState {
 		// lock ;-)
 		let update_tx = tx.clone();
 		harness.pool.spawn(
-			"Sending active leaves updates",
+			"sending-active-leaves-updates",
+			None,
 			async move {
 				for update in updates {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
 					// We need to give the subsystem a little time to do its job, otherwise it will
 					// cancel jobs as obsolete:
-					Delay::new(Duration::from_millis(20)).await;
+					Delay::new(Duration::from_millis(100)).await;
 				}
 			}
 			.boxed(),
@@ -215,7 +216,7 @@ impl TestState {
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 					reqs,
-					IfDisconnected::TryConnect,
+					IfDisconnected::ImmediateError,
 				)) => {
 					for req in reqs {
 						// Forward requests:
@@ -308,7 +309,8 @@ fn to_incoming_req(
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(
-				"Message forwarding",
+				"message-forwarding",
+				None,
 				async {
 					let response = rx.await;
 					let payload = response.expect("Unexpected canceled request").result;

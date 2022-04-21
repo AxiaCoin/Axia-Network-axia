@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Relayer initialization functions.
 
@@ -62,14 +62,7 @@ pub fn initialize_logger(with_timestamp: bool) {
 			let log_level = color_level(record.level());
 			let log_target = color_target(record.target());
 
-			writeln!(
-				buf,
-				"{}{} {} {}",
-				loop_name_prefix(),
-				log_level,
-				log_target,
-				record.args(),
-			)
+			writeln!(buf, "{}{} {} {}", loop_name_prefix(), log_level, log_target, record.args(),)
 		});
 	}
 
@@ -81,12 +74,14 @@ pub(crate) fn initialize_loop(loop_name: String) {
 	LOOP_NAME.with(|g_loop_name| *g_loop_name.borrow_mut() = loop_name);
 }
 
-/// Returns loop name prefix to use in logs. The prefix is initialized with the `initialize_loop` call.
+/// Returns loop name prefix to use in logs. The prefix is initialized with the `initialize_loop`
+/// call.
 fn loop_name_prefix() -> String {
 	// try_with to avoid panic outside of async-std task context
 	LOOP_NAME
 		.try_with(|loop_name| {
-			// using borrow is ok here, because loop is only initialized once (=> borrow_mut will only be called once)
+			// using borrow is ok here, because loop is only initialized once (=> borrow_mut will
+			// only be called once)
 			let loop_name = loop_name.borrow();
 			if loop_name.is_empty() {
 				String::new()

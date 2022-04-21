@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Tests inside this module are made to ensure that our custom justification verification
 //! implementation works exactly as `fn finality_grandpa::validate_commit`.
@@ -23,8 +23,8 @@
 use assert_matches::assert_matches;
 use bp_header_chain::justification::{verify_justification, Error, GrandpaJustification};
 use bp_test_utils::{
-	header_id, make_justification_for_header, signed_precommit, test_header, Account, JustificationGeneratorParams,
-	ALICE, BOB, CHARLIE, DAVE, EVE, TEST_GRANDPA_SET_ID,
+	header_id, make_justification_for_header, signed_precommit, test_header, Account,
+	JustificationGeneratorParams, ALICE, BOB, CHARLIE, DAVE, EVE, TEST_GRANDPA_SET_ID,
 };
 use finality_grandpa::voter_set::VoterSet;
 use sp_finality_grandpa::{AuthorityId, AuthorityWeight};
@@ -44,18 +44,22 @@ impl AncestryChain {
 }
 
 impl finality_grandpa::Chain<TestHash, TestNumber> for AncestryChain {
-	fn ancestry(&self, base: TestHash, block: TestHash) -> Result<Vec<TestHash>, finality_grandpa::Error> {
+	fn ancestry(
+		&self,
+		base: TestHash,
+		block: TestHash,
+	) -> Result<Vec<TestHash>, finality_grandpa::Error> {
 		let mut route = Vec::new();
 		let mut current_hash = block;
 		loop {
 			if current_hash == base {
-				break;
+				break
 			}
 			match self.0.parents.get(&current_hash).cloned() {
 				Some(parent_hash) => {
 					current_hash = parent_hash;
 					route.push(current_hash);
-				}
+				},
 				_ => return Err(finality_grandpa::Error::NotDescendent),
 			}
 		}
@@ -81,14 +85,11 @@ fn minimal_accounts_set() -> Vec<(Account, AuthorityWeight)> {
 	vec![(ALICE, 1), (BOB, 1), (CHARLIE, 1), (DAVE, 1)]
 }
 
-/// Get a minimal subset of GRANDPA authorities that have enough cumulative vote weight to justify a header finality.
+/// Get a minimal subset of GRANDPA authorities that have enough cumulative vote weight to justify a
+/// header finality.
 pub fn minimal_voter_set() -> VoterSet<AuthorityId> {
-	VoterSet::new(
-		minimal_accounts_set()
-			.iter()
-			.map(|(id, w)| (AuthorityId::from(*id), *w)),
-	)
-	.unwrap()
+	VoterSet::new(minimal_accounts_set().iter().map(|(id, w)| (AuthorityId::from(*id), *w)))
+		.unwrap()
 }
 
 /// Make a valid GRANDPA justification with sensible defaults.
@@ -174,14 +175,8 @@ fn same_result_when_justification_contains_duplicate_vote() {
 	let mut justification = make_default_justification(&test_header(1));
 	// the justification may contain exactly the same vote (i.e. same precommit and same signature)
 	// multiple times && it isn't treated as an error by original implementation
-	justification
-		.commit
-		.precommits
-		.push(justification.commit.precommits[0].clone());
-	justification
-		.commit
-		.precommits
-		.push(justification.commit.precommits[0].clone());
+	justification.commit.precommits.push(justification.commit.precommits[0].clone());
+	justification.commit.precommits.push(justification.commit.precommits[0].clone());
 
 	// our implementation succeeds
 	assert_eq!(
@@ -244,9 +239,9 @@ fn same_result_when_authority_equivocates_twice_in_a_round() {
 	let mut justification = make_default_justification(&test_header(1));
 	// there's some code in the original implementation that should return an error when
 	// same authority submits more than two different votes in a single round:
-	// https://github.com/axia/finality-grandpa/blob/6aeea2d1159d0f418f0b86e70739f2130629ca09/src/lib.rs#L473
+	// https://github.com/axiatech/finality-grandpa/blob/6aeea2d1159d0f418f0b86e70739f2130629ca09/src/lib.rs#L473
 	// but there's also a code that prevents this from happening:
-	// https://github.com/axia/finality-grandpa/blob/6aeea2d1159d0f418f0b86e70739f2130629ca09/src/round.rs#L287
+	// https://github.com/axiatech/finality-grandpa/blob/6aeea2d1159d0f418f0b86e70739f2130629ca09/src/round.rs#L287
 	// => so now we are also just ignoring all votes from the same authority, except the first one
 	justification.commit.precommits.push(signed_precommit::<TestHeader>(
 		&ALICE,

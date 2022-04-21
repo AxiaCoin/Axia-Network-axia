@@ -1,26 +1,30 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use ::test_helpers::{
+	dummy_candidate_receipt_bad_sig, dummy_collator, dummy_collator_signature,
+	dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
+};
 use assert_matches::assert_matches;
 use futures::{future, Future};
 use axia_node_primitives::{BlockData, InvalidCandidate};
 use axia_node_subsystem_test_helpers as test_helpers;
 use axia_primitives::v1::{
-	GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
+	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use axia_subsystem::{
 	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
@@ -46,14 +50,14 @@ fn table_statement_to_primitive(statement: TableStatement) -> Statement {
 }
 
 struct TestState {
-	chain_ids: Vec<ParaId>,
+	chain_ids: Vec<AllyId>,
 	keystore: SyncCryptoStorePtr,
 	validators: Vec<Sr25519Keyring>,
 	validator_public: Vec<ValidatorId>,
 	validation_data: PersistedValidationData,
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	availability_cores: Vec<CoreState>,
-	head_data: HashMap<ParaId, HeadData>,
+	head_data: HashMap<AllyId, HeadData>,
 	signing_context: SigningContext,
 	relay_parent: Hash,
 }
@@ -66,9 +70,9 @@ impl TestState {
 
 impl Default for TestState {
 	fn default() -> Self {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
-		let thread_a = ParaId::from(3);
+		let chain_a = AllyId::from(1);
+		let chain_b = AllyId::from(2);
+		let thread_a = AllyId::from(3);
 
 		let chain_ids = vec![chain_a, chain_b, thread_a];
 
@@ -101,10 +105,10 @@ impl Default for TestState {
 
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
-			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
+			CoreState::Scheduled(ScheduledCore { ally_id: chain_a, collator: None }),
+			CoreState::Scheduled(ScheduledCore { ally_id: chain_b, collator: None }),
 			CoreState::Scheduled(ScheduledCore {
-				para_id: thread_a,
+				ally_id: thread_a,
 				collator: Some(thread_collator.clone()),
 			}),
 		];
@@ -118,9 +122,9 @@ impl Default for TestState {
 
 		let validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			relay_parent_number: Default::default(),
+			relay_parent_number: 0_u32.into(),
 			max_pov_size: 1024,
-			relay_parent_storage_root: Default::default(),
+			relay_parent_storage_root: dummy_hash(),
 		};
 
 		Self {
@@ -174,7 +178,7 @@ fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 
 #[derive(Default)]
 struct TestCandidateBuilder {
-	para_id: ParaId,
+	ally_id: AllyId,
 	head_data: HeadData,
 	pov_hash: Hash,
 	relay_parent: Hash,
@@ -185,18 +189,29 @@ impl TestCandidateBuilder {
 	fn build(self) -> CommittedCandidateReceipt {
 		CommittedCandidateReceipt {
 			descriptor: CandidateDescriptor {
-				para_id: self.para_id,
+				ally_id: self.ally_id,
 				pov_hash: self.pov_hash,
 				relay_parent: self.relay_parent,
 				erasure_root: self.erasure_root,
-				..Default::default()
+				collator: dummy_collator(),
+				signature: dummy_collator_signature(),
+				para_head: dummy_hash(),
+				validation_code_hash: dummy_validation_code().hash(),
+				persisted_validation_data_hash: dummy_hash(),
 			},
-			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
+			commitments: CandidateCommitments {
+				head_data: self.head_data,
+				upward_messages: vec![],
+				horizontal_messages: vec![],
+				new_validation_code: None,
+				processed_downward_messages: 0,
+				hrmp_watermark: 0_u32,
+			},
 		}
 	}
 }
 
-// Tests that the subsystem performs actions that are requied on startup.
+// Tests that the subsystem performs actions that are required on startup.
 async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
 	// Start work on some new parent.
 	virtual_overseer
@@ -294,7 +309,7 @@ fn backing_second_works() {
 
 		let pov_hash = pov.hash();
 		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
@@ -378,7 +393,7 @@ fn backing_second_works() {
 	});
 }
 
-// Test that the candidate reaches quorum succesfully.
+// Test that the candidate reaches quorum successfully.
 #[test]
 fn backing_works() {
 	let test_state = TestState::default();
@@ -392,7 +407,7 @@ fn backing_works() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
@@ -567,7 +582,7 @@ fn backing_works_while_validation_ongoing() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
@@ -764,7 +779,7 @@ fn backing_misbehavior_works() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
@@ -952,7 +967,7 @@ fn backing_dont_second_invalid() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash: pov_hash_a,
 			erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
@@ -961,7 +976,7 @@ fn backing_dont_second_invalid() {
 		.build();
 
 		let candidate_b = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash: pov_hash_b,
 			erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
@@ -1081,7 +1096,7 @@ fn backing_second_after_first_fails_works() {
 		let pov_hash = pov.hash();
 
 		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
@@ -1167,7 +1182,7 @@ fn backing_second_after_first_fails_works() {
 		let pov_hash = pov_to_second.hash();
 
 		let candidate_to_second = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov_to_second.clone()),
@@ -1216,7 +1231,7 @@ fn backing_works_after_failed_validation() {
 		let pov_hash = pov.hash();
 
 		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
@@ -1307,7 +1322,7 @@ fn backing_works_after_failed_validation() {
 fn backing_doesnt_second_wrong_collator() {
 	let mut test_state = TestState::default();
 	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
+		ally_id: AllyId::from(1),
 		collator: Some(Sr25519Keyring::Bob.public().into()),
 	});
 
@@ -1320,7 +1335,7 @@ fn backing_doesnt_second_wrong_collator() {
 
 		let pov_hash = pov.hash();
 		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
@@ -1358,7 +1373,7 @@ fn backing_doesnt_second_wrong_collator() {
 fn validation_work_ignores_wrong_collator() {
 	let mut test_state = TestState::default();
 	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
-		para_id: ParaId::from(1),
+		ally_id: AllyId::from(1),
 		collator: Some(Sr25519Keyring::Bob.public().into()),
 	});
 
@@ -1372,7 +1387,7 @@ fn validation_work_ignores_wrong_collator() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
@@ -1420,7 +1435,7 @@ fn candidate_backing_reorders_votes() {
 	use sp_core::Encode;
 	use std::convert::TryFrom;
 
-	let para_id = ParaId::from(10);
+	let ally_id = AllyId::from(10);
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -1434,7 +1449,7 @@ fn candidate_backing_reorders_votes() {
 	let validator_groups = {
 		let mut validator_groups = HashMap::new();
 		validator_groups
-			.insert(para_id, vec![0, 1, 2, 3, 4, 5].into_iter().map(ValidatorIndex).collect());
+			.insert(ally_id, vec![0, 1, 2, 3, 4, 5].into_iter().map(ValidatorIndex).collect());
 		validator_groups
 	};
 
@@ -1445,7 +1460,8 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let fake_attestation = |idx: u32| {
-		let candidate: CommittedCandidateReceipt = Default::default();
+		let candidate =
+			dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()));
 		let hash = candidate.hash();
 		let mut data = vec![0; 64];
 		data[0..32].copy_from_slice(hash.0.as_bytes());
@@ -1456,13 +1472,13 @@ fn candidate_backing_reorders_votes() {
 	};
 
 	let attested = TableAttestedCandidate {
-		candidate: Default::default(),
+		candidate: dummy_committed_candidate_receipt(dummy_hash()),
 		validity_votes: vec![
 			(ValidatorIndex(5), fake_attestation(5)),
 			(ValidatorIndex(3), fake_attestation(3)),
 			(ValidatorIndex(1), fake_attestation(1)),
 		],
-		group_id: para_id,
+		group_id: ally_id,
 	};
 
 	let backed = table_attested_to_backed(attested, &table_context).unwrap();
@@ -1499,7 +1515,7 @@ fn retry_works() {
 		let pov_hash = pov.hash();
 
 		let candidate = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			erasure_root: make_erasure_root(&test_state, pov.clone()),
@@ -1678,7 +1694,7 @@ fn observes_backing_even_if_not_validator() {
 		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 		let candidate_a = TestCandidateBuilder {
-			para_id: test_state.chain_ids[0],
+			ally_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),

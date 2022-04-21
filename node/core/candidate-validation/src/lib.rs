@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The Candidate Validation subsystem.
 //!
@@ -24,7 +24,7 @@
 #![warn(missing_docs)]
 
 use axia_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
 };
 use axia_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -32,7 +32,8 @@ use axia_node_primitives::{
 use axia_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{
-		CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed,
+		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
+		ValidationFailed,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 	SubsystemResult, SubsystemSender,
@@ -194,6 +195,30 @@ where
 
 					ctx.spawn("validate-from-exhaustive", bg.boxed())?;
 				},
+				CandidateValidationMessage::PreCheck(
+					relay_parent,
+					validation_code_hash,
+					response_sender,
+				) => {
+					let bg = {
+						let mut sender = ctx.sender().clone();
+						let validation_host = validation_host.clone();
+
+						async move {
+							let precheck_result = precheck_pvf(
+								&mut sender,
+								validation_host,
+								relay_parent,
+								validation_code_hash,
+							)
+							.await;
+
+							let _ = response_sender.send(precheck_result);
+						}
+					};
+
+					ctx.spawn("candidate-validation-pre-check", bg.boxed())?;
+				},
 			},
 		}
 	}
@@ -235,6 +260,73 @@ where
 		})
 }
 
+async fn request_validation_code_by_hash<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
+where
+	Sender: SubsystemSender,
+{
+	let (tx, rx) = oneshot::channel();
+	runtime_api_request(
+		sender,
+		relay_parent,
+		RuntimeApiRequest::ValidationCodeByHash(validation_code_hash, tx),
+		rx,
+	)
+	.await
+}
+
+async fn precheck_pvf<Sender>(
+	sender: &mut Sender,
+	mut validation_backend: impl ValidationBackend,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> PreCheckOutcome
+where
+	Sender: SubsystemSender,
+{
+	let validation_code =
+		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
+			Ok(Some(code)) => code,
+			_ => {
+				// The reasoning why this is "failed" and not invalid is because we assume that
+				// during pre-checking voting the relay-chain will pin the code. In case the code
+				// actually is not there, we issue failed since this looks more like a bug. This
+				// leads to us abstaining.
+				tracing::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?validation_code_hash,
+					"precheck: requested validation code is not found on-chain!",
+				);
+				return PreCheckOutcome::Failed
+			},
+		};
+
+	let validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => Pvf::from_code(code.into_owned()),
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
+			return PreCheckOutcome::Invalid
+		},
+	};
+
+	match validation_backend.precheck_pvf(validation_code).await {
+		Ok(_) => PreCheckOutcome::Valid,
+		Err(prepare_err) => match prepare_err {
+			PrepareError::Prevalidation(_) |
+			PrepareError::Preparation(_) |
+			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
+			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
+		},
+	}
+}
+
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
 	Matches(PersistedValidationData, ValidationCode),
@@ -255,7 +347,7 @@ where
 		let d = runtime_api_request(
 			sender,
 			descriptor.relay_parent,
-			RuntimeApiRequest::PersistedValidationData(descriptor.para_id, assumption, tx),
+			RuntimeApiRequest::PersistedValidationData(descriptor.ally_id, assumption, tx),
 			rx,
 		)
 		.await;
@@ -273,7 +365,7 @@ where
 		let validation_code = runtime_api_request(
 			sender,
 			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCode(descriptor.para_id, assumption, code_tx),
+			RuntimeApiRequest::ValidationCode(descriptor.ally_id, assumption, code_tx),
 			code_rx,
 		)
 		.await;
@@ -337,7 +429,7 @@ where
 			AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
 				(validation_data, validation_code),
 			AssumptionCheckOutcome::DoesNotMatch => {
-				// If neither the assumption of the occupied core having the para included or the assumption
+				// If neither the assumption of the occupied core having the ally included or the assumption
 				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 				// is not based on the relay parent and is thus invalid.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
@@ -362,7 +454,7 @@ where
 		match runtime_api_request(
 			sender,
 			descriptor.relay_parent,
-			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
+			RuntimeApiRequest::CheckValidationOutputs(descriptor.ally_id, outputs.clone(), tx),
 			rx,
 		)
 		.await
@@ -392,7 +484,7 @@ async fn validate_candidate_exhaustive(
 	tracing::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
-		para_id = ?descriptor.para_id,
+		ally_id = ?descriptor.ally_id,
 		"About to validate a candidate.",
 	);
 
@@ -455,10 +547,12 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
-				"ambigious worker death".to_string(),
+				"ambiguous worker death".to_string(),
 			))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
@@ -485,6 +579,8 @@ trait ValidationBackend {
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
@@ -517,6 +613,17 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
 
 		validation_result
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+		let (tx, rx) = oneshot::channel();
+		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+			return Err(PrepareError::DidNotMakeIt)
+		}
+
+		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+
+		precheck_result
 	}
 }
 
@@ -609,7 +716,7 @@ impl metrics::Metrics for Metrics {
 			validation_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"allychain_validation_requests_total",
+						"axia_allychain_validation_requests_total",
 						"Number of validation requests served.",
 					),
 					&["validity"],
@@ -618,21 +725,21 @@ impl metrics::Metrics for Metrics {
 			)?,
 			validate_from_chain_state: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_validation_validate_from_chain_state",
+					"axia_allychain_candidate_validation_validate_from_chain_state",
 					"Time spent within `candidate_validation::validate_from_chain_state`",
 				))?,
 				registry,
 			)?,
 			validate_from_exhaustive: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_validation_validate_from_exhaustive",
+					"axia_allychain_candidate_validation_validate_from_exhaustive",
 					"Time spent within `candidate_validation::validate_from_exhaustive`",
 				))?,
 				registry,
 			)?,
 			validate_candidate_exhaustive: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_validation_validate_candidate_exhaustive",
+					"axia_allychain_candidate_validation_validate_candidate_exhaustive",
 					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
 				))?,
 				registry,

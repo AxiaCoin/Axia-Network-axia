@@ -2,17 +2,17 @@
 
 ## The easiest way
 
-The easiest/faster option to run AXIA in Docker is to use the latest release images. These are small images that use the latest official release of the AXIA binary, pulled from our package repository.
+The easiest/faster option to run Axia in Docker is to use the latest release images. These are small images that use the latest official release of the Axia binary, pulled from our package repository.
 
-**_Following examples are running on alphanet chain and without SSL. They can be used to quick start and learn how AXIA needs to be configured. Please find out how to secure your node, if you want to operate it on the internet. Do not expose RPC and WS ports, if they are not correctly configured._**
+**_Following examples are running on alphanet chain and without SSL. They can be used to quick start and learn how Axia needs to be configured. Please find out how to secure your node, if you want to operate it on the internet. Do not expose RPC and WS ports, if they are not correctly configured._**
 
-Let's first check the version we have. The first time you run this command, the AXIA docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
+Let's first check the version we have. The first time you run this command, the Axia docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
 ```bash
 docker run --rm -it axia/axia:latest --version
 ```
 
-You can also pass any argument/flag that AXIA supports:
+You can also pass any argument/flag that Axia supports:
 
 ```bash
 docker run --rm -it axia/axia:latest --chain alphanet --name "AxiaDocker"
@@ -20,9 +20,9 @@ docker run --rm -it axia/axia:latest --chain alphanet --name "AxiaDocker"
 
 ## Examples
 
-Once you are done experimenting and picking the best node name :) you can start AXIA as daemon, exposes the AXIA ports and mount a volume that will keep your blockchain data locally. Make sure that you set the ownership of your local directory to the AXIA user that is used by the container. Set user id 1000 and group id 1000, by running `chown 1000.1000 /my/local/folder -R` if you use a bind mount.
+Once you are done experimenting and picking the best node name :) you can start Axia as daemon, exposes the Axia ports and mount a volume that will keep your blockchain data locally. Make sure that you set the ownership of your local directory to the Axia user that is used by the container. Set user id 1000 and group id 1000, by running `chown 1000.1000 /my/local/folder -R` if you use a bind mount.
 
-To start a AXIA node on default rpc port 9933 and default p2p port 30333 use the following command. If you want to connect to rpc port 9933, then must add AXIA startup parameter: `--rpc-external`.
+To start a Axia node on default rpc port 9933 and default p2p port 30333 use the following command. If you want to connect to rpc port 9933, then must add Axia startup parameter: `--rpc-external`.
 
 ```bash
 docker run -d -p 30333:30333 -p 9933:9933 -v /my/local/folder:/axia axia/axia:latest --chain alphanet --rpc-external --rpc-cors all
@@ -114,7 +114,7 @@ axia --version
 
 ## Build your own image
 
-To get up and running with the smallest footprint on your system, you may use the AXIA Docker image.
+To get up and running with the smallest footprint on your system, you may use the Axia Docker image.
 You can build it yourself (it takes a while...) in the shell session of the daemon:
 
 ```bash
@@ -124,12 +124,12 @@ cd scripts/docker/axia
 
 ## Reporting issues
 
-If you run into issues with AXIA when using docker, please run the following command
+If you run into issues with Axia when using docker, please run the following command
 (replace the tag with the appropriate one if you do not use latest):
 
 ```bash
 docker run --rm -it axia/axia:latest --version
 ```
 
-This will show you the AXIA version as well as the git commit ref that was used to build your container.
+This will show you the Axia version as well as the git commit ref that was used to build your container.
 Just paste that in the issue you create.

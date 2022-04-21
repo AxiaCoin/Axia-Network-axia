@@ -1,23 +1,23 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 mod allychain;
 mod relay_chain;
 
-use axia_allychain::primitives::Id as ParaId;
+use axia_allychain::primitives::Id as AllyId;
 use sp_runtime::traits::AccountIdConversion;
 use xcm_simulator::{decl_test_network, decl_test_allychain, decl_test_relay_chain};
 
@@ -61,10 +61,10 @@ decl_test_network! {
 }
 
 pub fn para_account_id(id: u32) -> relay_chain::AccountId {
-	ParaId::from(id).into_account()
+	AllyId::from(id).into_account()
 }
 
-pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
+pub fn para_ext(ally_id: u32) -> sp_io::TestExternalities {
 	use allychain::{MsgQueue, Runtime, System};
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
@@ -76,7 +76,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| {
 		System::set_block_number(1);
-		MsgQueue::set_para_id(para_id.into());
+		MsgQueue::set_ally_id(ally_id.into());
 	});
 	ext
 }
@@ -138,7 +138,7 @@ mod tests {
 			use allychain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked(_, _)))));
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 
@@ -165,7 +165,7 @@ mod tests {
 			use relay_chain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked(_, _)))));
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 
@@ -193,7 +193,7 @@ mod tests {
 			use allychain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked(_, _)))));
+				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
 		});
 	}
 

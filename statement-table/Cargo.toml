@@ -1,10 +1,10 @@
 [package]
 name = "axia-statement-table"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 primitives = { package = "axia-primitives", path = "../primitives" }

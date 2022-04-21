@@ -24,7 +24,7 @@
           {
             "evaluator": {
               "params": [
-                5
+                32
               ],
               "type": "gt"
             },
@@ -46,11 +46,11 @@
           }
         ],
         "executionErrorState": "alerting",
-        "for": "5m",
+        "for": "60m",
         "frequency": "5m",
         "handler": 1,
         "message": "",
-        "name": "Synced Header Difference is Over 5 (AlphaNet to Millau)",
+        "name": "Synced Header Difference is Over 32 (Alphanet to Millau)",
         "noDataState": "no_data",
         "notifications": []
       },
@@ -99,7 +99,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "max(AlphaNet_to_Millau_Sync_best_block_numbers{node=\"source\"}) - max(AlphaNet_to_Millau_Sync_best_block_numbers{node=\"target\"})",
+          "expr": "max(Alphanet_to_Millau_Sync_best_block_numbers{node=\"source\"}) - max(Alphanet_to_Millau_Sync_best_block_numbers{node=\"target\"})",
           "format": "table",
           "instant": false,
           "interval": "",
@@ -163,7 +163,7 @@
           {
             "evaluator": {
               "params": [
-                5
+                32
               ],
               "type": "lt"
             },
@@ -185,10 +185,10 @@
           }
         ],
         "executionErrorState": "alerting",
-        "for": "3m",
+        "for": "60m",
         "frequency": "5m",
         "handler": 1,
-        "name": "No New Headers (AlphaNet to Millau)",
+        "name": "No New Headers (Alphanet to Millau)",
         "noDataState": "no_data",
         "notifications": []
       },
@@ -237,9 +237,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "max_over_time(AlphaNet_to_Millau_Sync_best_block_numbers{node=\"source\"}[2m])-min_over_time(AlphaNet_to_Millau_Sync_best_block_numbers{node=\"source\"}[2m])",
+          "expr": "max_over_time(Alphanet_to_Millau_Sync_best_block_numbers{node=\"source\"}[10m])-min_over_time(Alphanet_to_Millau_Sync_best_block_numbers{node=\"source\"}[10m])",
           "interval": "",
-          "legendFormat": "Number of new Headers on AlphaNet (Last 2 Mins)",
+          "legendFormat": "Number of new Headers on Alphanet (Last 10 Mins)",
           "refId": "A"
         }
       ],
@@ -341,7 +341,7 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "AlphaNet_to_Millau_Sync_best_block_numbers",
+          "expr": "Alphanet_to_Millau_Sync_best_block_numbers",
           "format": "time_series",
           "instant": true,
           "interval": "",
@@ -401,7 +401,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "AlphaNet_to_Millau_Sync_system_average_load",
+          "expr": "system_average_load{instance='relay-headers-alphanet-to-millau:9616'}",
           "interval": "",
           "legendFormat": "Average system load in last {{over}}",
           "refId": "A"
@@ -500,7 +500,7 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "avg_over_time(AlphaNet_to_Millau_Sync_process_cpu_usage_percentage[1m])",
+          "expr": "avg_over_time(process_cpu_usage_percentage{instance='relay-headers-alphanet-to-millau:9616'}[1m])",
           "instant": true,
           "interval": "",
           "legendFormat": "1 CPU = 100",
@@ -557,7 +557,7 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "AlphaNet_to_Millau_Sync_blocks_in_state",
+          "expr": "Alphanet_to_Millau_Sync_blocks_in_state",
           "instant": true,
           "interval": "",
           "legendFormat": "{{state}}",
@@ -615,7 +615,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "AlphaNet_to_Millau_Sync_process_memory_usage_bytes / 1024 / 1024",
+          "expr": "process_memory_usage_bytes{instance='relay-headers-alphanet-to-millau:9616'} / 1024 / 1024",
           "interval": "",
           "legendFormat": "Process memory, MB",
           "refId": "A"
@@ -688,7 +688,7 @@
     ]
   },
   "timezone": "",
-  "title": "AlphaNet to Millau Header Sync Dashboard",
+  "title": "Alphanet to Millau Header Sync Dashboard",
   "uid": "relay-alphanet-to-millau-headers",
   "version": 1
 }

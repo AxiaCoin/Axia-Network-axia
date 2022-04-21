@@ -1,15 +1,15 @@
 [package]
 name = "axia-node-core-candidate-validation"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
-async-trait = "0.1.51"
-futures = "0.3.17"
+async-trait = "0.1.52"
+futures = "0.3.21"
 tracing = "0.1.29"
 
-sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
 
 axia-primitives = { path = "../../../primitives" }
@@ -22,8 +22,9 @@ axia-node-subsystem-util = { path = "../../subsystem-util" }
 axia-node-core-pvf = { path = "../pvf" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-futures = { version = "0.3.17", features = ["thread-pool"] }
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+test-helpers = { package = "axia-primitives-test-helpers", path = "../../../primitives/test-helpers" }

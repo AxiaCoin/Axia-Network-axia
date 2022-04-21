@@ -1,23 +1,23 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v1::{Id as ParaId, PersistedValidationData, ValidatorIndex};
+use primitives::v1::{Id as AllyId, PersistedValidationData, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
@@ -27,14 +27,14 @@ use crate::{configuration, hrmp, paras};
 ///
 /// This ties together the storage of several modules.
 pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
-	para_id: ParaId,
+	ally_id: AllyId,
 	relay_parent_number: T::BlockNumber,
 	relay_parent_storage_root: T::Hash,
 ) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
 	let config = <configuration::Pallet<T>>::config();
 
 	Some(PersistedValidationData {
-		parent_head: <paras::Pallet<T>>::para_head(&para_id)?,
+		parent_head: <paras::Pallet<T>>::para_head(&ally_id)?,
 		relay_parent_number,
 		relay_parent_storage_root,
 		max_pov_size: config.max_pov_size,

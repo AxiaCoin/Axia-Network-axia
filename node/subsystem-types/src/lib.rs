@@ -1,22 +1,22 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Subsystem trait definitions and message types.
 //!
-//! Node-side logic for AXIA is mostly comprised of Subsystems, which are discrete components
+//! Node-side logic for Axia is mostly comprised of Subsystems, which are discrete components
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 
@@ -40,7 +40,7 @@ pub use axia_node_jaeger as jaeger;
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 
 /// The status of an activated leaf.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum LeafStatus {
 	/// A leaf is fresh when it's the first time the leaf has been encountered.
 	/// Most leaves should be fresh.

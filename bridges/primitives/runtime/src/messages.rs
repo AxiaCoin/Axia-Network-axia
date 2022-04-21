@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Primitives that may be used by different message delivery and dispatch mechanisms.
 
@@ -23,7 +23,7 @@ use scale_info::TypeInfo;
 /// Where message dispatch fee is paid?
 #[derive(Encode, Decode, RuntimeDebug, Clone, Copy, PartialEq, Eq, TypeInfo)]
 pub enum DispatchFeePayment {
-	/// The dispacth fee is paid at the source chain.
+	/// The dispatch fee is paid at the source chain.
 	AtSourceChain,
 	/// The dispatch fee is paid at the target chain.
 	///
@@ -51,7 +51,7 @@ pub struct MessageDispatchResult {
 	/// 2) if message has not been dispatched at all.
 	pub unspent_weight: Weight,
 	/// Whether the message dispatch fee has been paid during dispatch. This will be true if your
-	/// configuration supports pay-dispatch-fee-at-target-chain option and message sender has enabled
-	/// this option.
+	/// configuration supports pay-dispatch-fee-at-target-chain option and message sender has
+	/// enabled this option.
 	pub dispatch_fee_paid_during_dispatch: bool,
 }

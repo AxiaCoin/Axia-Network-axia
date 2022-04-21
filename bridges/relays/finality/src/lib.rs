@@ -1,31 +1,34 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This crate has single entrypoint to run synchronization loop that is built around finality
 //! proofs, as opposed to headers synchronization loop, which is built around headers. The headers
 //! are still submitted to the target node, but are treated as auxiliary data as we are not trying
 //! to submit all source headers to the target node.
 
-pub use crate::finality_loop::{metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient};
+pub use crate::finality_loop::{
+	metrics_prefix, run, FinalitySyncParams, SourceClient, TargetClient,
+};
 
 use bp_header_chain::FinalityProof;
 use std::fmt::Debug;
 
 mod finality_loop;
 mod finality_loop_tests;
+mod sync_loop_metrics;
 
 /// Finality proofs synchronization pipeline.
 pub trait FinalitySyncPipeline: 'static + Clone + Debug + Send + Sync {

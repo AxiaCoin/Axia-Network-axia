@@ -1,34 +1,35 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use futures::{executor::block_on, pin_mut};
 use axia_node_subsystem::messages::AllMessages;
 use axia_primitives::v1::{CandidateHash, OccupiedCore};
+use test_helpers::dummy_candidate_descriptor;
 
-fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
+fn occupied_core(ally_id: u32, candidate_hash: CandidateHash) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
-		group_responsible: para_id.into(),
+		group_responsible: ally_id.into(),
 		next_up_on_available: None,
 		occupied_since: 100_u32,
 		time_out_at: 200_u32,
 		next_up_on_time_out: None,
 		availability: Default::default(),
 		candidate_hash,
-		candidate_descriptor: Default::default(),
+		candidate_descriptor: dummy_candidate_descriptor(Hash::zero()),
 	})
 }
 

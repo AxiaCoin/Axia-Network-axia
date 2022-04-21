@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A common interface for all Bridge Message Dispatch modules.
 
@@ -35,7 +35,7 @@ pub type Weight = u64;
 pub type SpecVersion = u32;
 
 /// A generic trait to dispatch arbitrary messages delivered over the bridge.
-pub trait MessageDispatch<AccountId, MessageId> {
+pub trait MessageDispatch<AccountId, BridgeMessageId> {
 	/// A type of the message to be dispatched.
 	type Message: codec::Decode;
 
@@ -61,7 +61,7 @@ pub trait MessageDispatch<AccountId, MessageId> {
 	fn dispatch<P: FnOnce(&AccountId, Weight) -> Result<(), ()>>(
 		source_chain: ChainId,
 		target_chain: ChainId,
-		id: MessageId,
+		id: BridgeMessageId,
 		message: Result<Self::Message, ()>,
 		pay_dispatch_fee: P,
 	) -> MessageDispatchResult;
@@ -78,7 +78,7 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 	/// from a derived account.
 	///
 	/// The derived account represents the source Root account on the target chain. This is useful
-	/// if the target chain needs some way of knowing that a call came from a priviledged origin on
+	/// if the target chain needs some way of knowing that a call came from a privileged origin on
 	/// the source chain (maybe to allow a configuration change for example).
 	SourceRoot,
 
@@ -113,7 +113,12 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 
 /// Message payload type used by dispatch module.
 #[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
-pub struct MessagePayload<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature, Call> {
+pub struct MessagePayload<
+	SourceChainAccountId,
+	TargetChainAccountPublic,
+	TargetChainSignature,
+	Call,
+> {
 	/// Runtime specification version. We only dispatch messages that have the same
 	/// runtime version. Otherwise we risk to misinterpret encoded calls.
 	pub spec_version: SpecVersion,

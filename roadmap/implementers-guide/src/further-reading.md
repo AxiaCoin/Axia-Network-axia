@@ -1,4 +1,4 @@
 # Further Reading
 
-- AXIA Wiki on Consensus: <https://wiki.axia.network/docs/learn-consensus>
-- AXIA Spec: <https://github.com/w3f/axia-spec>
+- Axia Wiki on Consensus: <https://wiki.axia.network/docs/learn-consensus>
+- Axia Spec: <https://github.com/w3f/axia-spec>

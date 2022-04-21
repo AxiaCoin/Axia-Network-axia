@@ -1,20 +1,20 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Overview over request/responses as used in `AXIA`.
+//! Overview over request/responses as used in `Axia`.
 //!
 //! `enum Protocol` .... List of all supported protocols.
 //!
@@ -95,7 +95,7 @@ pub const CHUNK_REQUEST_TIMEOUT: Duration = DEFAULT_REQUEST_TIMEOUT_CONNECTED;
 /// This timeout is based on what seems sensible from a time budget perspective, considering 6
 /// second block time. This is going to be tough, if we have multiple forks and large PoVs, but we
 /// only have so much time.
-const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1000);
+const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 
 /// We want timeout statement requests fast, so we don't waste time on slow nodes. Responders will
 /// try their best to either serve within that timeout or return an error immediately. (We need to
@@ -133,7 +133,7 @@ impl Protocol {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: POV_RESPONSE_SIZE as u64 / 10,
+				max_response_size: POV_RESPONSE_SIZE as u64 * 3,
 				// We are connected to all validators:
 				request_timeout: CHUNK_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
@@ -168,7 +168,7 @@ impl Protocol {
 				max_response_size: STATEMENT_RESPONSE_SIZE,
 				// We need statement fetching to be fast and will try our best at the responding
 				// side to answer requests within that timeout, assuming a bandwidth of 500Mbit/s
-				// - which is the recommended minimum bandwidth for nodes on AXIATEST as of April
+				// - which is the recommended minimum bandwidth for nodes on AxiaTest as of April
 				// 2021.
 				// Responders will reject requests, if it is unlikely they can serve them within
 				// the timeout, so the requester can immediately try another node, instead of

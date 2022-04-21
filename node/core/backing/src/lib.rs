@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Implements a `CandidateBackingSubsystem`.
 
@@ -42,7 +42,7 @@ use axia_node_subsystem_util::{
 };
 use axia_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as AllyId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use axia_subsystem::{
@@ -53,7 +53,7 @@ use axia_subsystem::{
 		DisputeCoordinatorMessage, ImportStatementsResult, ProvisionableData, ProvisionerMessage,
 		RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
 	},
-	overseer, PerLeafSpan, Stage, SubsystemSender,
+	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -148,8 +148,8 @@ pub struct CandidateBackingJob {
 	parent: Hash,
 	/// The session index this corresponds to.
 	session_index: SessionIndex,
-	/// The `ParaId` assigned to this validator
-	assignment: Option<ParaId>,
+	/// The `AllyId` assigned to this validator
+	assignment: Option<AllyId>,
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
 	/// Spans for all candidates that are not yet backable.
@@ -190,21 +190,29 @@ struct AttestingData {
 	backing: Vec<ValidatorIndex>,
 }
 
-const fn group_quorum(n_validators: usize) -> usize {
-	(n_validators / 2) + 1
+/// How many votes we need to consider a candidate backed.
+fn minimum_votes(n_validators: usize) -> usize {
+	// Runtime change going live, see: https://github.com/axiatech/axia/pull/4437
+	let old_runtime_value = n_validators / 2 + 1;
+	let new_runtime_value = std::cmp::min(2, n_validators);
+
+	// Until new runtime is live everywhere and we don't yet have
+	// https://github.com/axiatech/axia/issues/4576, we want to err on the higher value for
+	// secured block production:
+	std::cmp::max(old_runtime_value, new_runtime_value)
 }
 
 #[derive(Default)]
 struct TableContext {
 	validator: Option<Validator>,
-	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
+	groups: HashMap<AllyId, Vec<ValidatorIndex>>,
 	validators: Vec<ValidatorId>,
 }
 
 impl TableContextTrait for TableContext {
 	type AuthorityId = ValidatorIndex;
 	type Digest = CandidateHash;
-	type GroupId = ParaId;
+	type GroupId = AllyId;
 	type Signature = ValidatorSignature;
 	type Candidate = CommittedCandidateReceipt;
 
@@ -212,18 +220,18 @@ impl TableContextTrait for TableContext {
 		candidate.hash()
 	}
 
-	fn candidate_group(candidate: &CommittedCandidateReceipt) -> ParaId {
-		candidate.descriptor().para_id
+	fn candidate_group(candidate: &CommittedCandidateReceipt) -> AllyId {
+		candidate.descriptor().ally_id
 	}
 
-	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &AllyId) -> bool {
 		self.groups
 			.get(group)
 			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
 	}
 
-	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::MAX, |g| group_quorum(g.len()))
+	fn requisite_votes(&self, group: &AllyId) -> usize {
+		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
 	}
 }
 
@@ -246,19 +254,19 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 
 fn table_attested_to_backed(
 	attested: TableAttestedCandidate<
-		ParaId,
+		AllyId,
 		CommittedCandidateReceipt,
 		ValidatorIndex,
 		ValidatorSignature,
 	>,
 	table_context: &TableContext,
 ) -> Option<BackedCandidate> {
-	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
+	let TableAttestedCandidate { candidate, validity_votes, group_id: ally_id } = attested;
 
 	let (ids, validity_votes): (Vec<_>, Vec<ValidityAttestation>) =
 		validity_votes.into_iter().map(|(id, vote)| (id, vote.into())).unzip();
 
-	let group = table_context.groups.get(&para_id)?;
+	let group = table_context.groups.get(&ally_id)?;
 
 	let mut validator_indices = BitVec::with_capacity(group.len());
 
@@ -451,7 +459,7 @@ async fn validate_and_make_available(
 		let _span = span.as_ref().map(|s| {
 			s.child("request-validation")
 				.with_pov(&pov)
-				.with_para_id(candidate.descriptor().para_id)
+				.with_ally_id(candidate.descriptor().ally_id)
 		});
 		request_candidate_validation(&mut sender, candidate.descriptor.clone(), pov.clone()).await?
 	};
@@ -659,7 +667,7 @@ impl CandidateBackingJob {
 				}
 			};
 			sender
-				.send_command(FromJobCommand::Spawn("Backing Validation", bg.boxed()))
+				.send_command(FromJobCommand::Spawn("backing-validation", bg.boxed()))
 				.await?;
 		}
 
@@ -691,7 +699,7 @@ impl CandidateBackingJob {
 		let mut span = self.get_unbacked_validation_child(
 			root_span,
 			candidate_hash,
-			candidate.descriptor().para_id,
+			candidate.descriptor().ally_id,
 		);
 
 		span.as_mut().map(|span| span.add_follows_from(parent_span));
@@ -810,7 +818,7 @@ impl CandidateBackingJob {
 						target: LOG_TARGET,
 						candidate_hash = ?candidate_hash,
 						relay_parent = ?self.parent,
-						para_id = %backed.candidate.descriptor.para_id,
+						ally_id = %backed.candidate.descriptor.ally_id,
 						"Candidate backed",
 					);
 
@@ -900,11 +908,13 @@ impl CandidateBackingJob {
 				.await;
 
 			match confirmation_rx.await {
-				Err(oneshot::Canceled) =>
-					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
+				Err(oneshot::Canceled) => {
+					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+				},
 				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) =>
-					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",),
+				Ok(ImportStatementsResult::InvalidImport) => {
+					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
+				},
 			}
 		}
 
@@ -929,7 +939,14 @@ impl CandidateBackingJob {
 					.with_relay_parent(relay_parent);
 
 				// Sanity check that candidate is from our assignment.
-				if Some(candidate.descriptor().para_id) != self.assignment {
+				if Some(candidate.descriptor().ally_id) != self.assignment {
+					tracing::debug!(
+						target: LOG_TARGET,
+						our_assignment = ?self.assignment,
+						collation = ?candidate.descriptor().ally_id,
+						"Subsystem asked to second for ally outside of our assignment",
+					);
+
 					return Ok(())
 				}
 
@@ -1113,14 +1130,14 @@ impl CandidateBackingJob {
 		&mut self,
 		parent_span: &jaeger::Span,
 		hash: CandidateHash,
-		para_id: Option<ParaId>,
+		ally_id: Option<AllyId>,
 	) -> Option<&jaeger::Span> {
 		if !self.backed.contains(&hash) {
 			// only add if we don't consider this backed.
 			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
 				let s = parent_span.child("unbacked-candidate").with_candidate(hash);
-				if let Some(para_id) = para_id {
-					s.with_para_id(para_id)
+				if let Some(ally_id) = ally_id {
+					s.with_ally_id(ally_id)
 				} else {
 					s
 				}
@@ -1135,9 +1152,9 @@ impl CandidateBackingJob {
 		&mut self,
 		parent_span: &jaeger::Span,
 		hash: CandidateHash,
-		para_id: ParaId,
+		ally_id: AllyId,
 	) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash, Some(para_id)).map(|span| {
+		self.insert_or_get_unbacked_span(parent_span, hash, Some(ally_id)).map(|span| {
 			span.child("validation")
 				.with_candidate(hash)
 				.with_stage(Stage::CandidateBacking)
@@ -1168,16 +1185,16 @@ impl util::JobTrait for CandidateBackingJob {
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "CandidateBackingJob";
+	const NAME: &'static str = "candidate-backing-job";
 
 	fn run<S: SubsystemSender>(
-		parent: Hash,
-		span: Arc<jaeger::Span>,
+		leaf: ActivatedLeaf,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut sender: JobSender<S>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		let parent = leaf.hash;
 		async move {
 			macro_rules! try_runtime_api {
 				($x: expr) => {
@@ -1199,7 +1216,7 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
-			let span = PerLeafSpan::new(span, "backing");
+			let span = PerLeafSpan::new(leaf.span, "backing");
 			let _span = span.child("runtime-apis");
 
 			let (validators, groups, session_index, cores) = futures::try_join!(
@@ -1255,9 +1272,9 @@ impl util::JobTrait for CandidateBackingJob {
 					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 					if let Some(g) = validator_groups.get(group_index.0 as usize) {
 						if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-							assignment = Some((scheduled.para_id, scheduled.collator));
+							assignment = Some((scheduled.ally_id, scheduled.collator));
 						}
-						groups.insert(scheduled.para_id, g.clone());
+						groups.insert(scheduled.ally_id, g.clone());
 					}
 				}
 			}
@@ -1271,7 +1288,7 @@ impl util::JobTrait for CandidateBackingJob {
 				},
 				Some((assignment, required_collator)) => {
 					assignments_span.add_string_tag("assigned", "true");
-					assignments_span.add_para_id(assignment);
+					assignments_span.add_ally_id(assignment);
 					(Some(assignment), required_collator)
 				},
 			};
@@ -1355,35 +1372,35 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			signed_statements_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_candidate_backing_signed_statements_total",
+					"axia_allychain_candidate_backing_signed_statements_total",
 					"Number of statements signed.",
 				)?,
 				registry,
 			)?,
 			candidates_seconded_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_candidate_backing_candidates_seconded_total",
+					"axia_allychain_candidate_backing_candidates_seconded_total",
 					"Number of candidates seconded.",
 				)?,
 				registry,
 			)?,
 			process_second: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_backing_process_second",
+					"axia_allychain_candidate_backing_process_second",
 					"Time spent within `candidate_backing::process_second`",
 				))?,
 				registry,
 			)?,
 			process_statement: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_backing_process_statement",
+					"axia_allychain_candidate_backing_process_statement",
 					"Time spent within `candidate_backing::process_statement`",
 				))?,
 				registry,
 			)?,
 			get_backed_candidates: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"allychain_candidate_backing_get_backed_candidates",
+					"axia_allychain_candidate_backing_get_backed_candidates",
 					"Time spent within `candidate_backing::get_backed_candidates`",
 				))?,
 				registry,

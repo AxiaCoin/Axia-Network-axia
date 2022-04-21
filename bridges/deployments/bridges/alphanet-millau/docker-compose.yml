@@ -3,7 +3,7 @@
 version: '3.5'
 services:
   relay-headers-alphanet-to-millau:
-    image: axia/axlib-relay
+    image: axiatech/axlib-relay
     entrypoint: /entrypoints/relay-headers-alphanet-to-millau-entrypoint.sh
     volumes:
       - ./bridges/alphanet-millau/entrypoints:/entrypoints
@@ -20,7 +20,7 @@ services:
       VIRTUAL_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
       VIRTUAL_PORT: 3000
       LETSENCRYPT_HOST: grafana.millau.brucke.link,grafana.rialto.brucke.link
-      LETSENCRYPT_EMAIL: admin@axiacoin.network
+      LETSENCRYPT_EMAIL: admin@axia.io
     volumes:
       - ./bridges/alphanet-millau/dashboard/grafana:/etc/grafana/dashboards/alphanet-millau:ro
 

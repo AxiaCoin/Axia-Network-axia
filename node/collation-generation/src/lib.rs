@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The collation generation subsystem is the interface between axia and the collators.
 
@@ -24,16 +24,17 @@ use axia_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use axia_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult,
+	SubsystemError, SubsystemResult, SubsystemSender,
 };
 use axia_node_subsystem_util::{
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
-	request_validators,
+	request_validation_code_hash, request_validators,
 };
 use axia_primitives::v1::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
-	CoreState, Hash, OccupiedCoreAssumption, PersistedValidationData,
+	CoreState, Hash, Id as AllyId, OccupiedCoreAssumption, PersistedValidationData,
+	ValidationCodeHash,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -62,7 +63,7 @@ impl CollationGenerationSubsystem {
 	/// Conceptually, this is very simple: it just loops forever.
 	///
 	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
-	/// - On other incoming messages, if they can be converted into Job::ToJob and
+	/// - On other incoming messages, if they can be converted into `Job::ToJob` and
 	///   include a hash, then they're forwarded to the appropriate individual job.
 	/// - On outgoing messages from the jobs, it forwards them to the overseer.
 	///
@@ -205,7 +206,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
-					// TODO: https://github.com/axia/axia/issues/1573
+					// TODO: https://github.com/axiatech/axia/issues/1573
 					tracing::trace!(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
@@ -224,13 +225,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				},
 			};
 
-			if scheduled_core.para_id != config.para_id {
+			if scheduled_core.ally_id != config.ally_id {
 				tracing::trace!(
 					target: LOG_TARGET,
 					core_idx = %core_idx,
 					relay_parent = ?relay_parent,
-					our_para = %config.para_id,
-					their_para = %scheduled_core.para_id,
+					our_para = %config.ally_id,
+					their_para = %scheduled_core.ally_id,
 					"core is not assigned to our para. Keep going.",
 				);
 				continue
@@ -242,7 +243,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 			let validation_data = match request_persisted_validation_data(
 				relay_parent,
-				scheduled_core.para_id,
+				scheduled_core.ally_id,
 				assumption,
 				ctx.sender(),
 			)
@@ -255,22 +256,21 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
-						our_para = %config.para_id,
-						their_para = %scheduled_core.para_id,
+						our_para = %config.ally_id,
+						their_para = %scheduled_core.ally_id,
 						"validation data is not available",
 					);
 					continue
 				},
 			};
 
-			let validation_code = match request_validation_code(
+			let validation_code_hash = match obtain_current_validation_code_hash(
 				relay_parent,
-				scheduled_core.para_id,
+				scheduled_core.ally_id,
 				assumption,
 				ctx.sender(),
 			)
-			.await
-			.await??
+			.await?
 			{
 				Some(v) => v,
 				None => {
@@ -278,20 +278,19 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						target: LOG_TARGET,
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
-						our_para = %config.para_id,
-						their_para = %scheduled_core.para_id,
-						"validation code is not available",
+						our_para = %config.ally_id,
+						their_para = %scheduled_core.ally_id,
+						"validation code hash is not found.",
 					);
 					continue
 				},
 			};
-			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn(
-				"collation generation collation builder",
+				"collation-builder",
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
 
@@ -301,7 +300,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 							None => {
 								tracing::debug!(
 									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
+									ally_id = %scheduled_core.ally_id,
 									"collator returned no collation on collate",
 								);
 								return
@@ -310,9 +309,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 					// Apply compression to the block data.
 					let pov = {
-						let pov = axia_node_primitives::maybe_compress_pov(
-							collation.proof_of_validity,
-						);
+						let pov = collation.proof_of_validity.into_compressed();
 						let encoded_size = pov.encoded_size();
 
 						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
@@ -323,7 +320,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						if encoded_size > validation_data.max_pov_size as usize {
 							tracing::debug!(
 								target: LOG_TARGET,
-								para_id = %scheduled_core.para_id,
+								ally_id = %scheduled_core.ally_id,
 								size = encoded_size,
 								max_size = validation_data.max_pov_size,
 								"PoV exceeded maximum size"
@@ -339,7 +336,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 					let signature_payload = collator_signature_payload(
 						&relay_parent,
-						&scheduled_core.para_id,
+						&scheduled_core.ally_id,
 						&persisted_validation_data_hash,
 						&pov_hash,
 						&validation_code_hash,
@@ -351,7 +348,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 							Err(err) => {
 								tracing::error!(
 									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
+									ally_id = %scheduled_core.ally_id,
 									err = ?err,
 									"failed to calculate erasure root",
 								);
@@ -372,7 +369,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						commitments_hash: commitments.hash(),
 						descriptor: CandidateDescriptor {
 							signature: task_config.key.sign(&signature_payload),
-							para_id: scheduled_core.para_id,
+							ally_id: scheduled_core.ally_id,
 							relay_parent,
 							collator: task_config.key.public(),
 							persisted_validation_data_hash,
@@ -388,7 +385,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						candidate_hash = ?ccr.hash(),
 						?pov_hash,
 						?relay_parent,
-						para_id = %scheduled_core.para_id,
+						ally_id = %scheduled_core.ally_id,
 						"candidate is generated",
 					);
 					metrics.on_collation_generated();
@@ -401,7 +398,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					{
 						tracing::warn!(
 							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
+							ally_id = %scheduled_core.ally_id,
 							err = ?err,
 							"failed to send collation result",
 						);
@@ -412,6 +409,35 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	}
 
 	Ok(())
+}
+
+async fn obtain_current_validation_code_hash(
+	relay_parent: Hash,
+	ally_id: AllyId,
+	assumption: OccupiedCoreAssumption,
+	sender: &mut impl SubsystemSender,
+) -> Result<Option<ValidationCodeHash>, crate::error::Error> {
+	use axia_node_subsystem::RuntimeApiError;
+
+	match request_validation_code_hash(relay_parent, ally_id, assumption, sender)
+		.await
+		.await?
+	{
+		Ok(Some(v)) => Ok(Some(v)),
+		Ok(None) => Ok(None),
+		Err(RuntimeApiError::NotSupported { .. }) => {
+			match request_validation_code(relay_parent, ally_id, assumption, sender).await.await? {
+				Ok(Some(v)) => Ok(Some(v.hash())),
+				Ok(None) => Ok(None),
+				Err(e) => {
+					// We assume that the `validation_code` API is always available, so any error
+					// is unexpected.
+					Err(e.into())
+				},
+			}
+		},
+		Err(e @ RuntimeApiError::Execution { .. }) => Err(e.into()),
+	}
 }
 
 fn erasure_root(
@@ -474,7 +500,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			collations_generated_total: prometheus::register(
 				prometheus::Counter::new(
-					"allychain_collations_generated_total",
+					"axia_allychain_collations_generated_total",
 					"Number of collations generated."
 				)?,
 				registry,
@@ -482,7 +508,7 @@ impl metrics::Metrics for Metrics {
 			new_activations_overall: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"allychain_collation_generation_new_activations",
+						"axia_allychain_collation_generation_new_activations",
 						"Time spent within fn handle_new_activations",
 					)
 				)?,
@@ -491,7 +517,7 @@ impl metrics::Metrics for Metrics {
 			new_activations_per_relay_parent: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"allychain_collation_generation_per_relay_parent",
+						"axia_allychain_collation_generation_per_relay_parent",
 						"Time spent handling a particular relay parent within fn handle_new_activations"
 					)
 				)?,
@@ -500,7 +526,7 @@ impl metrics::Metrics for Metrics {
 			new_activations_per_availability_core: prometheus::register(
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
-						"allychain_collation_generation_per_availability_core",
+						"axia_allychain_collation_generation_per_availability_core",
 						"Time spent handling a particular availability core for a relay parent in fn handle_new_activations",
 					)
 				)?,

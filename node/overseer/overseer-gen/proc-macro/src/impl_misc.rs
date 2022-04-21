@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::quote;
 use syn::Ident;
@@ -112,6 +112,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				>,
 			signals_received: SignalsReceived,
 			pending_incoming: Option<(usize, M)>,
+			name: &'static str
 		}
 
 		impl<M> #subsystem_ctx_name<M> {
@@ -121,6 +122,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				messages: SubsystemIncomingMessages<M>,
 				to_subsystems: ChannelsOut,
 				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOverseer>,
+				name: &'static str
 			) -> Self {
 				let signals_received = SignalsReceived::default();
 				#subsystem_ctx_name {
@@ -133,7 +135,12 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					to_overseer,
 					signals_received,
 					pending_incoming: None,
+					name
 				}
+			}
+
+			fn name(&self) -> &'static str {
+				self.name
 			}
 		}
 
@@ -229,6 +236,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			{
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
 					name,
+					subsystem: Some(self.name()),
 					s,
 				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
 				Ok(())
@@ -239,6 +247,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			{
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
 					name,
+					subsystem: Some(self.name()),
 					s,
 				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
 				Ok(())

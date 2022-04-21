@@ -6,7 +6,7 @@ Due to the (lack of) guarantees provided by a particular blockchain-runtime fram
 
 We also expect, although it's beyond the scope of this guide, that these runtime modules will exist alongside various other modules. This has two facets to consider. First, even if the modules that we describe here don't invoke each others' entry points or routines during initialization, we still have to protect against those other modules doing that. Second, some of those modules are expected to provide governance capabilities for the chain. Configuration exposed by allychain-host modules is mostly for the benefit of these governance modules, to allow the operators or community of the chain to tweak parameters.
 
-The runtime's primary roles to manage scheduling and updating of allychains and parathreads, as well as handling misbehavior reports and slashing. This guide doesn't focus on how allychains or parathreads are registered, only that they are. Also, this runtime description assumes that validator sets are selected somehow, but doesn't assume any other details than a periodic _session change_ event. Session changes give information about the incoming validator set and the validator set of the following session.
+The runtime's primary roles to manage scheduling and updating of allychains and allythreads, as well as handling misbehavior reports and slashing. This guide doesn't focus on how allychains or allythreads are registered, only that they are. Also, this runtime description assumes that validator sets are selected somehow, but doesn't assume any other details than a periodic _session change_ event. Session changes give information about the incoming validator set and the validator set of the following session.
 
 The runtime also serves another role, which is to make data available to the Node-side logic via Runtime APIs. These Runtime APIs should be sufficient for the Node-side code to author blocks correctly.
 
@@ -17,12 +17,12 @@ We will split the logic of the runtime up into these modules:
 * Initializer: manage initialization order of the other modules.
 * Shared: manages shared storage and configurations for other modules.
 * Configuration: manage configuration and configuration updates in a non-racy manner.
-* Paras: manage chain-head and validation code for allychains and parathreads.
-* Scheduler: manages allychain and parathread scheduling as well as validator assignments.
-* Inclusion: handles the inclusion and availability of scheduled allychains and parathreads.
+* Paras: manage chain-head and validation code for allychains and allythreads.
+* Scheduler: manages allychain and allythread scheduling as well as validator assignments.
+* Inclusion: handles the inclusion and availability of scheduled allychains and allythreads.
 * Validity: handles secondary checks and dispute resolution for included, available parablocks.
 * HRMP: handles horizontal messages between paras.
-* UMP: Handles upward messages from a para to the relay chain.
+* UMP: Handles upward messages from a ally to the relay chain.
 * DMP: Handles downward messages from the relay chain to the para.
 
 The [Initializer module](initializer.md) is special - it's responsible for handling the initialization logic of the other modules to ensure that the correct initialization order and related invariants are maintained. The other modules won't specify a on-initialize logic, but will instead expose a special semi-private routine that the initialization module will call. The other modules are relatively straightforward and perform the roles described above.

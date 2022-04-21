@@ -1,76 +1,77 @@
 [package]
 name = "axia-service"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
 # Axlib Client
-sc-authority-discovery = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-beefy-primitives = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-beefy-gadget = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-block-builder = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-chain-spec = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-client-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-client-db = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-consensus-uncles = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-consensus = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-consensus-slots = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-executor = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-transaction-pool = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-sync-state-rpc = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-basic-authorship = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-service = { package = "sc-service", git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-telemetry = { package = "sc-telemetry", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-authority-discovery = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+beefy-primitives = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+beefy-gadget = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-block-builder = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-chain-spec = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-client-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-client-db = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-consensus-uncles = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-consensus = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-consensus-slots = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-executor = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-network = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-transaction-pool = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-sync-state-rpc = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-basic-authorship = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-offchain = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+service = { package = "sc-service", git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 # Axlib Primitives
-sp-authority-discovery = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-inherents = { package = "sp-inherents", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-block-builder = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-blockchain = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-session = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-storage = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-transaction-pool = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-trie = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-timestamp = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-consensus-babe = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-state-machine = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-authority-discovery = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+inherents = { package = "sp-inherents", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-block-builder = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-blockchain = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-session = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-storage = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-transaction-pool = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-trie = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-timestamp = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-consensus-babe = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-state-machine = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 # Axlib Pallets
-pallet-babe = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-im-online = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-staking = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-mmr-primitives = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+pallet-babe = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-im-online = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-staking = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-mmr-primitives = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 # Axlib Other
-frame-system-rpc-runtime-api = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-prometheus-endpoint = { package = "axlib-prometheus-endpoint", git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+frame-system-rpc-runtime-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+prometheus-endpoint = { package = "axlib-prometheus-endpoint", git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 # External Crates
-futures = "0.3.17"
-hex-literal = "0.3.3"
+futures = "0.3.21"
+hex-literal = "0.3.4"
 tracing = "0.1.29"
-serde = { version = "1.0.130", features = ["derive"] }
+serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 kvdb = "0.10.0"
 kvdb-rocksdb = { version = "0.14.0", optional = true }
-async-trait = "0.1.51"
+async-trait = "0.1.52"
 lru = "0.7"
 
-# AXIA
+# Axia
 axia-node-core-allychains-inherent = { path = "../core/allychains-inherent" }
 axia-overseer = { path = "../overseer" }
 axia-client = { path = "../client", default-features = false, optional = true }
@@ -83,13 +84,19 @@ axia-node-subsystem-util = { path = "../subsystem-util" }
 axia-runtime-allychains = { path = "../../runtime/allychains" }
 axia-node-network-protocol = { path = "../network/protocol" }
 
-# AXIA Runtimes
+# Axia Runtime Constants
+axia-runtime-constants = { path = "../../runtime/axia/constants", optional = true }
+axctest-runtime-constants = { path = "../../runtime/axctest/constants", optional = true }
+betanet-runtime-constants = { path = "../../runtime/betanet/constants", optional = true }
+alphanet-runtime-constants = { path = "../../runtime/alphanet/constants", optional = true }
+
+# Axia Runtimes
 axia-runtime = { path = "../../runtime/axia", optional = true }
-axiatest-runtime = { path = "../../runtime/axiatest", optional = true }
+axctest-runtime = { path = "../../runtime/axctest", optional = true }
 alphanet-runtime = { path = "../../runtime/alphanet", optional = true }
 betanet-runtime = { path = "../../runtime/betanet", optional = true }
 
-# AXIA Subsystems
+# Axia Subsystems
 axia-approval-distribution = { path = "../network/approval-distribution", optional = true }
 axia-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
 axia-availability-distribution = { path = "../network/availability-distribution", optional = true }
@@ -107,8 +114,8 @@ axia-node-core-candidate-validation = { path = "../core/candidate-validation", o
 axia-node-core-chain-api = { path = "../core/chain-api", optional = true }
 axia-node-core-chain-selection = { path = "../core/chain-selection", optional = true }
 axia-node-core-dispute-coordinator = { path = "../core/dispute-coordinator", optional = true }
-axia-node-core-dispute-participation = { path = "../core/dispute-participation", optional = true }
 axia-node-core-provisioner = { path = "../core/provisioner", optional = true }
+axia-node-core-pvf-checker = { path = "../core/pvf-checker", optional = true }
 axia-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 axia-statement-distribution = { path = "../network/statement-distribution", optional = true }
 
@@ -144,35 +151,47 @@ full-node = [
 	"axia-node-core-chain-api",
 	"axia-node-core-chain-selection",
 	"axia-node-core-dispute-coordinator",
-	"axia-node-core-dispute-participation",
 	"axia-node-core-provisioner",
 	"axia-node-core-runtime-api",
 	"axia-statement-distribution",
 	"axia-approval-distribution",
+	"axia-node-core-pvf-checker",
 	"kvdb-rocksdb"
 ]
 
-light-node = []
-
-# Configure the native runtimes to use. AXIA is enabled by default.
+# Configure the native runtimes to use. Axia is enabled by default.
 #
 # Validators require the native runtime currently
-axia-native = [ "axia-runtime", "axia-client/axia" ]
-axiatest-native = [ "axiatest-runtime", "axia-client/axiatest" ]
-alphanet-native = [ "alphanet-runtime", "axia-client/alphanet" ]
-betanet-native = [ "betanet-runtime", "axia-client/betanet" ]
+axia-native = [ "axia-runtime", "axia-runtime-constants", "axia-client/axia" ]
+axctest-native = [ "axctest-runtime", "axctest-runtime-constants", "axia-client/axctest" ]
+alphanet-native = [ "alphanet-runtime", "alphanet-runtime-constants", "axia-client/alphanet" ]
+betanet-native = [ "betanet-runtime", "betanet-runtime-constants", "axia-client/betanet" ]
 
 runtime-benchmarks = [
 	"axia-runtime/runtime-benchmarks",
-	"axiatest-runtime/runtime-benchmarks",
+	"axctest-runtime/runtime-benchmarks",
 	"alphanet-runtime/runtime-benchmarks",
 	"betanet-runtime/runtime-benchmarks"
 ]
 try-runtime = [
 	"axia-runtime/try-runtime",
-	"axiatest-runtime/try-runtime",
+	"axctest-runtime/try-runtime",
 	"alphanet-runtime/try-runtime",
 	"betanet-runtime/try-runtime",
 ]
+fast-runtime = [
+	"axia-runtime/fast-runtime",
+	"axctest-runtime/fast-runtime",
+	"alphanet-runtime/fast-runtime",
+	"betanet-runtime/fast-runtime",
+]
+
 malus = ["full-node"]
-disputes = ["axia-node-core-dispute-coordinator/disputes"]
+runtime-metrics = [
+	"axia-client/runtime-metrics",
+	"betanet-runtime/runtime-metrics",
+	"alphanet-runtime/runtime-metrics",
+	"axctest-runtime/runtime-metrics",
+	"axia-runtime/runtime-metrics",
+	"axia-runtime-allychains/runtime-metrics"
+]

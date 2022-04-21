@@ -1,20 +1,20 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA Jaeger span definitions.
+//! Axia Jaeger span definitions.
 //!
 //! ```rust
 //! # use axia_primitives::v1::{CandidateHash, Hash};
@@ -41,7 +41,7 @@
 //! 		.with_string_fmt_debug_tag("foo", foo)
 //! 		// anything that implements `trait std::str::ToString`
 //! 		.with_string_tag("again", 1337_u32)
-//! 		// add a `Stage` for [`axc-jaeger`](https://github.com/axia/axc-jaeger)
+//! 		// add a `Stage` for [`axc-jaeger`](https://github.com/axiatech/axc-jaeger)
 //! 		.with_stage(jaeger::Stage::CandidateBacking);
 //! 		// complete by design, no completion required
 //! # }
@@ -86,7 +86,7 @@
 use axia_scale_codec::Encode;
 use axia_node_primitives::PoV;
 use axia_primitives::v1::{
-	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,
+	BlakeTwo256, CandidateHash, Hash, HashT, Id as AllyId, ValidatorIndex,
 };
 use sc_network::PeerId;
 
@@ -153,9 +153,9 @@ pub enum Stage {
 	ApprovalChecking = 8,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
-	// in [the path of a para chain block]
+	// in [the path of a ally chain block]
 	// (https://axia.network/the-path-of-a-allychain-block/)
-	// see [issue](https://github.com/axia/axia/issues/2389)
+	// see [issue](https://github.com/axiatech/axia/issues/2389)
 }
 
 /// A wrapper type for a span.
@@ -291,8 +291,8 @@ impl Span {
 
 	/// Attach a para-id to the span.
 	#[inline(always)]
-	pub fn with_para_id(self, para_id: ParaId) -> Self {
-		self.with_int_tag("para-id", u32::from(para_id) as i64)
+	pub fn with_ally_id(self, ally_id: AllyId) -> Self {
+		self.with_int_tag("para-id", u32::from(ally_id) as i64)
 	}
 
 	/// Attach a candidate stage.
@@ -369,8 +369,8 @@ impl Span {
 	}
 
 	#[inline(always)]
-	pub fn add_para_id(&mut self, para_id: ParaId) {
-		self.add_int_tag("para-id", u32::from(para_id) as i64);
+	pub fn add_ally_id(&mut self, ally_id: AllyId) {
+		self.add_int_tag("para-id", u32::from(ally_id) as i64);
 	}
 
 	/// Add a string tag, without consuming the span.

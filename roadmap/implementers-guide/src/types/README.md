@@ -16,7 +16,7 @@ digraph {
     CandidateDescriptor [label = <
         <table>
             <tr><td border="0" colspan="2" port="name">CandidateDescriptor&lt;H = Hash&gt;</td></tr>
-            <tr><td>para_id</td><td port="para_id">Id</td></tr>
+            <tr><td>ally_id</td><td port="ally_id">Id</td></tr>
             <tr><td>relay_parent</td><td port="relay_parent">H</td></tr>
             <tr><td>collator</td><td port="collator">CollatorId</td></tr>
             <tr><td>persisted_validation_data_hash</td><td port="persisted_validation_data_hash">Hash</td></tr>
@@ -26,7 +26,7 @@ digraph {
         </table>
     >]
 
-    CandidateDescriptor:para_id -> Id:w
+    CandidateDescriptor:ally_id -> Id:w
     CandidateDescriptor:pov_hash -> PoVHash
     CandidateDescriptor:collator -> CollatorId:w
     CandidateDescriptor:persisted_validation_data_hash -> PersistedValidationDataHash
@@ -171,41 +171,41 @@ digraph {
         </table>
     >]
 
-    ParathreadClaim [label = <
+    AllythreadClaim [label = <
         <table>
-            <tr><td border="0" colspan="2" port="name">ParathreadClaim</td></tr>
+            <tr><td border="0" colspan="2" port="name">AllythreadClaim</td></tr>
             <tr><td>0</td><td port="0">Id</td></tr>
             <tr><td>1</td><td port="1">CollatorId</td></tr>
         </table>
     >]
 
-    ParathreadClaim:0 -> Id:w
-    ParathreadClaim:1 -> CollatorId:w
+    AllythreadClaim:0 -> Id:w
+    AllythreadClaim:1 -> CollatorId:w
 
     MessageQueueChainLink [label = "(prev_head, B, H(M))\nSee doc of AbridgedHrmpChannel::mqc_head"]
     MQCHash [label = "Hash", shape="doublecircle", fill="gray90"]
 
     MQCHash -> MessageQueueChainLink
 
-    ParathreadEntry [label = <
+    AllythreadEntry [label = <
         <table>
-            <tr><td border="0" colspan="2" port="name">ParathreadEntry</td></tr>
-            <tr><td>claim</td><td port="claim">ParathreadClaim</td></tr>
+            <tr><td border="0" colspan="2" port="name">AllythreadEntry</td></tr>
+            <tr><td>claim</td><td port="claim">AllythreadClaim</td></tr>
             <tr><td>retries</td><td port="retries">u32</td></tr>
         </table>
     >]
 
-    ParathreadEntry:claim -> ParathreadClaim:name
+    AllythreadEntry:claim -> AllythreadClaim:name
 
     CoreOccupied [label = <
         <table>
             <tr><td border="0" colspan="2" port="name"><i>enum</i> CoreOccupied</td></tr>
-            <tr><td></td><td port="parathread">Parathread(ParathreadEntry)</td></tr>
+            <tr><td></td><td port="allythread">Allythread(AllythreadEntry)</td></tr>
             <tr><td></td><td port="allychain">Allychain</td></tr>
         </table>
     >]
 
-    CoreOccupied:parathread -> ParathreadEntry:name
+    CoreOccupied:allythread -> AllythreadEntry:name
 
     AvailableData [label = <
         <table>
@@ -250,12 +250,12 @@ digraph {
     ScheduledCore [label = <
         <table>
             <tr><td border="0" colspan="2" port="name">ScheduledCore</td></tr>
-            <tr><td>para_id</td><td port="para_id">Id</td></tr>
+            <tr><td>ally_id</td><td port="ally_id">Id</td></tr>
             <tr><td>collator</td><td port="collator">Option&lt;CollatorId&gt;</td></tr>
         </table>
     >]
 
-    ScheduledCore:para_id -> Id:w
+    ScheduledCore:ally_id -> Id:w
     ScheduledCore:collator -> CollatorId:w
 
     CoreState [label = <
@@ -316,7 +316,7 @@ digraph {
             <tr><td>max_upward_message_size</td><td port="max_upward_message_size">u32</td></tr>
             <tr><td>max_upward_messages_num_per_candidate</td><td port="max_upward_messages_num_per_candidate">u32</td></tr>
             <tr><td>hrmp_max_message_num_per_candidate</td><td port="hrmp_max_message_num_per_candidate">u32</td></tr>
-            <tr><td>validation_upgrade_frequency</td><td port="validation_upgrade_frequency">BlockNumber</td></tr>
+            <tr><td>validation_upgrade_cooldown</td><td port="validation_upgrade_cooldown">BlockNumber</td></tr>
             <tr><td>validation_upgrade_delay</td><td port="validation_upgrade_delay">BlockNumber</td></tr>
         </table>
     >]

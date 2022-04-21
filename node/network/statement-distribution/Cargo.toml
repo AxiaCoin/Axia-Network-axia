@@ -1,34 +1,35 @@
 [package]
 name = "axia-statement-distribution"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.21"
 tracing = "0.1.29"
 axia-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-staking = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
 axia-node-primitives = { path = "../../primitives" }
 axia-node-subsystem-util = { path = "../../subsystem-util" }
 axia-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
-indexmap = "1.7.0"
+indexmap = "1.8.0"
 axia-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-derive_more = "0.99.11"
+derive_more = "0.99.17"
 thiserror = "1.0.30"
 
 [dev-dependencies]
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-application-crypto = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-tracing = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-tracing = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-network = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 futures-timer = "3.0.2"
+axia-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

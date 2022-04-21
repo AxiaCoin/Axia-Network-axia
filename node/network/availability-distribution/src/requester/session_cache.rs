@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
 
@@ -105,7 +105,7 @@ impl SessionCache {
 		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
-		let session_index = runtime.get_session_index(ctx.sender(), parent).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), parent).await?;
 
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
@@ -144,10 +144,13 @@ impl SessionCache {
 	/// We assume validators in a group are tried in reverse order, so the reported bad validators
 	/// will be put at the beginning of the group.
 	pub fn report_bad(&mut self, report: BadValidators) -> crate::Result<()> {
-		let session = self
-			.session_info_cache
-			.get_mut(&report.session_index)
-			.ok_or(NonFatal::NoSuchCachedSession)?;
+		let available_sessions = self.session_info_cache.iter().map(|(k, _)| *k).collect();
+		let session = self.session_info_cache.get_mut(&report.session_index).ok_or(
+			NonFatal::NoSuchCachedSession {
+				available_sessions,
+				missing_session: report.session_index,
+			},
+		)?;
 		let group = session.validator_groups.get_mut(report.group_index.0 as usize).expect(
 			"A bad validator report must contain a valid group for the reported session. qed.",
 		);
@@ -174,13 +177,15 @@ impl SessionCache {
 		&self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		parent: Hash,
+		relay_parent: Hash,
 		session_index: SessionIndex,
 	) -> Result<Option<SessionInfo>, Error>
 	where
 		Context: SubsystemContext,
 	{
-		let info = runtime.get_session_info_by_index(ctx.sender(), parent, session_index).await?;
+		let info = runtime
+			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+			.await?;
 
 		let discovery_keys = info.session_info.discovery_keys.clone();
 		let mut validator_groups = info.session_info.validator_groups.clone();

@@ -1,20 +1,20 @@
 [package]
 name = "axia-node-subsystem-types"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
-derive_more = "0.99.11"
-futures = "0.3.17"
+derive_more = "0.99.17"
+futures = "0.3.21"
 axia-primitives = { path = "../../primitives" }
 axia-node-primitives = { path = "../primitives" }
 axia-node-network-protocol = { path = "../network/protocol" }
 axia-statement-table = { path = "../../statement-table" }
 axia-node-jaeger = { path = "../jaeger" }
 axia-overseer-gen = { path = "../overseer/overseer-gen" }
-sc-network = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sc-network = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 smallvec = "1.6.1"
-axlib-prometheus-endpoint = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axlib-prometheus-endpoint = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 thiserror = "1.0.30"

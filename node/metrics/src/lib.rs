@@ -1,18 +1,18 @@
-// Copyright 2017-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2017-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Metrics helpers
 //!
@@ -29,6 +29,17 @@ pub use metered_channel as metered;
 /// Cyclic metric collection support.
 pub mod metronome;
 pub use self::metronome::Metronome;
+
+#[cfg(feature = "runtime-metrics")]
+pub mod runtime;
+#[cfg(feature = "runtime-metrics")]
+pub use self::runtime::logger_hook;
+
+/// Export a dummy logger hook when the `runtime-metrics` feature is not enabled.
+#[cfg(not(feature = "runtime-metrics"))]
+pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
+	|_logger_builder, _config| {}
+}
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
@@ -69,3 +80,6 @@ pub mod metrics {
 		}
 	}
 }
+
+#[cfg(all(feature = "runtime-metrics", not(feature = "runtime-benchmarks"), test))]
+mod tests;

@@ -1,23 +1,26 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{bridge::FullBridge, AccountId};
-use crate::select_full_bridge;
+use crate::{
+	cli::{bridge::FullBridge, AccountId},
+	select_full_bridge,
+};
 use relay_axlib_client::Chain;
 use structopt::StructOpt;
+use strum::VariantNames;
 
 /// Given a source chain `AccountId`, derive the corresponding `AccountId` for the target chain.
 ///
@@ -28,7 +31,7 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 pub struct DeriveAccount {
 	/// A bridge instance to initialize.
-	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
+	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
 	bridge: FullBridge,
 	/// Source-chain address to derive Target-chain address from.
 	account: AccountId,
@@ -54,11 +57,7 @@ impl DeriveAccount {
 		select_full_bridge!(self.bridge, {
 			let (account, derived_account) = self.derive_account();
 			println!("Source address:\n{} ({})", account, Source::NAME);
-			println!(
-				"->Corresponding (derived) address:\n{} ({})",
-				derived_account,
-				Target::NAME,
-			);
+			println!("->Corresponding (derived) address:\n{} ({})", derived_account, Target::NAME,);
 
 			Ok(())
 		})
@@ -80,9 +79,9 @@ mod tests {
 		let millau = "752paRyW1EGfq9YLTSSqcSJ5hqnBDidBmaftGhBo8fy6ypW9";
 
 		// when
-		let (rialto_parsed, rialto_derived) = derive_account_cli("RialtoToMillau", rialto);
-		let (millau_parsed, millau_derived) = derive_account_cli("MillauToRialto", millau);
-		let (millau2_parsed, millau2_derived) = derive_account_cli("MillauToRialto", rialto);
+		let (rialto_parsed, rialto_derived) = derive_account_cli("rialto-to-millau", rialto);
+		let (millau_parsed, millau_derived) = derive_account_cli("millau-to-rialto", millau);
+		let (millau2_parsed, millau2_derived) = derive_account_cli("millau-to-rialto", rialto);
 
 		// then
 		assert_eq!(format!("{}", rialto_parsed), rialto);

@@ -21,9 +21,9 @@ This design should result in a protocol that is:
 
 ### Output
 
-- [`DisputeCoordinatorMessage::ActiveDisputes`][DisputeParticipationMessage]
-- [`DisputeCoordinatorMessage::ImportStatements`][DisputeParticipationMessage]
-- [`DisputeCoordinatorMessage::QueryCandidateVotes`][DisputeParticipationMessage]
+- [`DisputeCoordinatorMessage::ActiveDisputes`][DisputeCoordinatorMessage]
+- [`DisputeCoordinatorMessage::ImportStatements`][DisputeCoordinatorMessage]
+- [`DisputeCoordinatorMessage::QueryCandidateVotes`][DisputeCoordinatorMessage]
 - [`RuntimeApiMessage`][RuntimeApiMessage]
 
 ### Wire format
@@ -173,7 +173,7 @@ a dispute is no longer live, we will clean up the state accordingly.
 Because we are not forwarding foreign statements, spam is less of an issue in
 comparison to gossip based systems. Rate limiting should be implemented at the
 axlib level, see
-[#7750](https://github.com/axia-tech/axia-core/issues/7750). Still we should
+[#7750](https://github.com/axiatech/axlib/issues/7750). Still we should
 make sure that it is not possible via spamming to prevent a dispute concluding
 or worse from getting noticed.
 
@@ -357,4 +357,3 @@ no real harm done: There was no serious attack to begin with.
 
 [DisputeDistributionMessage]: ../../types/overseer-protocol.md#dispute-distribution-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
-[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

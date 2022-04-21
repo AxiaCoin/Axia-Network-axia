@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
@@ -27,10 +27,10 @@ pub enum NetworkId {
 	Any,
 	/// Some named network.
 	Named(Vec<u8>),
-	/// The AXIA Relay chain
-	AXIA,
-	/// AXIATEST.
-	AXIATEST,
+	/// The Axia Relay chain
+	Axia,
+	/// AxiaTest.
+	AxiaTest,
 }
 
 /// An identifier of a pluralistic body.
@@ -42,14 +42,14 @@ pub enum BodyId {
 	Named(Vec<u8>),
 	/// An indexed body.
 	Index(#[codec(compact)] u32),
-	/// The unambiguous executive body (for AXIA, this would be the AXIA council).
+	/// The unambiguous executive body (for Axia, this would be the Axia council).
 	Executive,
-	/// The unambiguous technical body (for AXIA, this would be the Technical Committee).
+	/// The unambiguous technical body (for Axia, this would be the Technical Committee).
 	Technical,
-	/// The unambiguous legislative body (for AXIA, this could be considered the opinion of a majority of
+	/// The unambiguous legislative body (for Axia, this could be considered the opinion of a majority of
 	/// lock-voters).
 	Legislative,
-	/// The unambiguous judicial body (this doesn't exist on AXIA, but if it were to get a "grand oracle", it
+	/// The unambiguous judicial body (this doesn't exist on Axia, but if it were to get a "grand oracle", it
 	/// may be considered as that).
 	Judicial,
 }
@@ -111,7 +111,7 @@ pub enum Junction {
 	Parent,
 	/// An indexed allychain belonging to and operated by the context.
 	///
-	/// Generally used when the context is a AXIA Relay-chain.
+	/// Generally used when the context is a Axia Relay-chain.
 	Allychain(#[codec(compact)] u32),
 	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.

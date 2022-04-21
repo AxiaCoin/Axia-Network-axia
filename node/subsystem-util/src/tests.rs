@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use assert_matches::assert_matches;
@@ -25,6 +25,7 @@ use axia_node_subsystem::{
 };
 use axia_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 use axia_primitives::v1::Hash;
+use axia_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 use std::{
 	pin::Pin,
 	sync::{
@@ -62,14 +63,13 @@ impl JobTrait for FakeCollatorProtocolJob {
 	type RunArgs = bool;
 	type Metrics = ();
 
-	const NAME: &'static str = "FakeCollatorProtocolJob";
+	const NAME: &'static str = "fake-collator-protocol-job";
 
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
 	fn run<S: SubsystemSender>(
-		_: Hash,
-		_: Arc<jaeger::Span>,
+		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
@@ -82,7 +82,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
 						Default::default(),
-						Default::default(),
+						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
 			}
@@ -199,7 +199,7 @@ fn test_subsystem_impl_and_name_derivation() {
 
 	let SpawnedSubsystem { name, .. } =
 		FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
-	assert_eq!(name, "FakeCollatorProtocol");
+	assert_eq!(name, "fake-collator-protocol");
 }
 
 #[test]

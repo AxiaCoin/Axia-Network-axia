@@ -1,4 +1,4 @@
-// Copyright (C) 2020 AXIA Technologies (UK) Ltd.
+// Copyright (C) 2020 Axia Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 //! A list of the different weight modules for our runtime.
 
 pub mod frame_system;
+pub mod pallet_bags_list;
 pub mod pallet_balances;
 pub mod pallet_bounties;
 pub mod pallet_collective_council;
@@ -28,6 +29,7 @@ pub mod pallet_im_online;
 pub mod pallet_indices;
 pub mod pallet_membership;
 pub mod pallet_multisig;
+pub mod pallet_preimage;
 pub mod pallet_proxy;
 pub mod pallet_scheduler;
 pub mod pallet_session;
@@ -43,5 +45,7 @@ pub mod runtime_common_crowdloan;
 pub mod runtime_common_paras_registrar;
 pub mod runtime_common_slots;
 pub mod runtime_allychains_configuration;
+pub mod runtime_allychains_hrmp;
 pub mod runtime_allychains_initializer;
 pub mod runtime_allychains_paras;
+pub mod runtime_allychains_paras_inherent;

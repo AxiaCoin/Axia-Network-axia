@@ -4,7 +4,7 @@
 # To override the default port just export WOCOCO_PORT=9955
 #
 # Note: This script will not work out of the box with the bridges
-# repo since it relies on a AXIA binary.
+# repo since it relies on a Axia binary.
 
 WOCOCO_PORT="${WOCOCO_PORT:-9944}"
 

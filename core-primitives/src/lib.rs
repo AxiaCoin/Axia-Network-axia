@@ -1,24 +1,24 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! Core AXIA types.
+//! Core Axia types.
 //!
-//! These core AXIA types are used by the relay chain and the Allychains.
+//! These core Axia types are used by the relay chain and the Allychains.
 
 use axia_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
@@ -32,7 +32,7 @@ use sp_runtime::{
 
 pub use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
-/// The block number type used by AXIA.
+/// The block number type used by Axia.
 /// 32-bits will allow for 136 years of blocks assuming 1 block per second.
 pub type BlockNumber = u32;
 
@@ -143,7 +143,7 @@ pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpMessage<Id> {
-	/// The para that will get this message in its downward message queue.
+	/// The ally that will get this message in its downward message queue.
 	pub recipient: Id,
 	/// The message payload.
 	pub data: sp_std::vec::Vec<u8>,

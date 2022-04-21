@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
@@ -20,7 +20,7 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use axia_scale_codec::Encode;
-use primitives::v1::Id as ParaId;
+use primitives::v1::Id as AllyId;
 use runtime_allychains::{
 	configuration, dmp, hrmp,
 	paras::{self, ParaGenesisArgs},
@@ -45,20 +45,20 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The specified allychain or parathread is not registered.
+		/// The specified allychain or allythread is not registered.
 		ParaDoesntExist,
-		/// The specified allychain or parathread is already registered.
+		/// The specified allychain or allythread is already registered.
 		ParaAlreadyExists,
 		/// A DMP message couldn't be sent because it exceeds the maximum size allowed for a downward
 		/// message.
 		ExceedsMaxMessageSize,
-		/// Could not schedule para cleanup.
+		/// Could not schedule ally cleanup.
 		CouldntCleanup,
-		/// Not a parathread.
-		NotParathread,
+		/// Not a allythread.
+		NotAllythread,
 		/// Not a allychain.
 		NotAllychain,
-		/// Cannot upgrade parathread.
+		/// Cannot upgrade allythread.
 		CannotUpgrade,
 		/// Cannot downgrade allychain.
 		CannotDowngrade,
@@ -69,11 +69,11 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Schedule a para to be initialized at the start of the next session.
+		/// Schedule a ally to be initialized at the start of the next session.
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_initialize(
 			origin: OriginFor<T>,
-			id: ParaId,
+			id: AllyId,
 			genesis: ParaGenesisArgs,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -82,40 +82,40 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Schedule a para to be cleaned up at the start of the next session.
+		/// Schedule a ally to be cleaned up at the start of the next session.
 		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_schedule_para_cleanup(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
+		pub fn sudo_schedule_para_cleanup(origin: OriginFor<T>, id: AllyId) -> DispatchResult {
 			ensure_root(origin)?;
 			runtime_allychains::schedule_para_cleanup::<T>(id)
 				.map_err(|_| Error::<T>::CouldntCleanup)?;
 			Ok(())
 		}
 
-		/// Upgrade a parathread to a allychain
+		/// Upgrade a allythread to a allychain
 		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_schedule_parathread_upgrade(
+		pub fn sudo_schedule_allythread_upgrade(
 			origin: OriginFor<T>,
-			id: ParaId,
+			id: AllyId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			// Para backend should think this is a parathread...
+			// Ally backend should think this is a allythread...
 			ensure!(
-				paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread),
-				Error::<T>::NotParathread,
+				paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Allythread),
+				Error::<T>::NotAllythread,
 			);
-			runtime_allychains::schedule_parathread_upgrade::<T>(id)
+			runtime_allychains::schedule_allythread_upgrade::<T>(id)
 				.map_err(|_| Error::<T>::CannotUpgrade)?;
 			Ok(())
 		}
 
-		/// Downgrade a allychain to a parathread
+		/// Downgrade a allychain to a allythread
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_allychain_downgrade(
 			origin: OriginFor<T>,
-			id: ParaId,
+			id: AllyId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			// Para backend should think this is a allychain...
+			// Ally backend should think this is a allychain...
 			ensure!(
 				paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Allychain),
 				Error::<T>::NotAllychain,
@@ -132,7 +132,7 @@ pub mod pallet {
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_queue_downward_xcm(
 			origin: OriginFor<T>,
-			id: ParaId,
+			id: AllyId,
 			xcm: Box<xcm::opaque::VersionedXcm>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -152,8 +152,8 @@ pub mod pallet {
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_establish_hrmp_channel(
 			origin: OriginFor<T>,
-			sender: ParaId,
-			recipient: ParaId,
+			sender: AllyId,
+			recipient: AllyId,
 			max_capacity: u32,
 			max_message_size: u32,
 		) -> DispatchResult {

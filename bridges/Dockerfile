@@ -8,12 +8,12 @@
 #
 # See the `deployments/README.md` for all the available `PROJECT` values.
 
-FROM docker.io/axia/bridges-ci:latest as builder
+FROM docker.io/axiatech/bridges-ci:latest as builder
 WORKDIR /axia-bridges-common
 
 COPY . .
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=axlib-relay
 RUN cargo build --release --verbose -p ${PROJECT} && \
     strip ./target/release/${PROJECT}
 
@@ -42,7 +42,7 @@ USER user
 
 WORKDIR /home/user
 
-ARG PROJECT=ethereum-poa-relay
+ARG PROJECT=axlib-relay
 
 COPY --chown=user:user --from=builder /axia-bridges-common/target/release/${PROJECT} ./
 COPY --chown=user:user --from=builder /axia-bridges-common/deployments/local-scripts/bridge-entrypoint.sh ./
@@ -59,13 +59,13 @@ ARG BUILD_DATE=""
 ARG VERSION=""
 
 LABEL org.opencontainers.image.title="${PROJECT}" \
-    org.opencontainers.image.description="${PROJECT} - component of AXIA Bridges Common" \
-    org.opencontainers.image.source="https://github.com/axia/axia-bridges-common/blob/${VCS_REF}/Dockerfile" \
-    org.opencontainers.image.url="https://github.com/axia/axia-bridges-common/blob/${VCS_REF}/Dockerfile" \
-    org.opencontainers.image.documentation="https://github.com/axia/axia-bridges-common/blob/${VCS_REF}/README.md" \
+    org.opencontainers.image.description="${PROJECT} - component of Axia Bridges Common" \
+    org.opencontainers.image.source="https://github.com/axiatech/axia-bridges-common/blob/${VCS_REF}/Dockerfile" \
+    org.opencontainers.image.url="https://github.com/axiatech/axia-bridges-common/blob/${VCS_REF}/Dockerfile" \
+    org.opencontainers.image.documentation="https://github.com/axiatech/axia-bridges-common/blob/${VCS_REF}/README.md" \
     org.opencontainers.image.created="${BUILD_DATE}" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
-    org.opencontainers.image.authors="devops-team@axiacoin.network" \
-    org.opencontainers.image.vendor="AXIA Technologies" \
+    org.opencontainers.image.authors="devops-team@axia.io" \
+    org.opencontainers.image.vendor="Axia Technologies" \
     org.opencontainers.image.licenses="GPL-3.0 License"

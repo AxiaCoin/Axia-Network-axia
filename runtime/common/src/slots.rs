@@ -1,25 +1,25 @@
-// Copyright 2019-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2019-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Parathread and allychains leasing system. Allows para IDs to be claimed, the code and data to be initialized and
-//! allychain slots (i.e. continuous scheduling) to be leased. Also allows for allychains and parathreads to be
+//! Allythread and allychains leasing system. Allows ally IDs to be claimed, the code and data to be initialized and
+//! allychain slots (i.e. continuous scheduling) to be leased. Also allows for allychains and allythreads to be
 //! swapped.
 //!
-//! This doesn't handle the mechanics of determining which para ID actually ends up with a allychain lease. This
-//! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
+//! This doesn't handle the mechanics of determining which ally ID actually ends up with a allychain lease. This
+//! must handled by a seallytely, through the trait interface that this pallet provides or the root dispatchables.
 
 use crate::traits::{LeaseError, Leaser, Registrar};
 use frame_support::{
@@ -29,7 +29,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use primitives::v1::Id as ParaId;
+use primitives::v1::Id as AllyId;
 use sp_runtime::traits::{CheckedConversion, CheckedSub, Saturating, Zero};
 use sp_std::prelude::*;
 
@@ -66,6 +66,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -86,6 +87,9 @@ pub mod pallet {
 		/// The number of blocks to offset each lease period by.
 		#[pallet::constant]
 		type LeaseOffset: Get<Self::BlockNumber>;
+
+		/// The origin which may forcibly create or clear leases. Root can always do this.
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
@@ -110,19 +114,19 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn lease)]
 	pub type Leases<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, Vec<Option<(T::AccountId, BalanceOf<T>)>>, ValueQuery>;
+		StorageMap<_, Twox64Concat, AllyId, Vec<Option<(T::AccountId, BalanceOf<T>)>>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new `[lease_period]` is beginning.
 		NewLeasePeriod(LeasePeriodOf<T>),
-		/// A para has won the right to a continuous set of lease periods as a allychain.
-		/// First balance is any extra amount reserved on top of the para's existing deposit.
+		/// A ally has won the right to a continuous set of lease periods as a allychain.
+		/// First balance is any extra amount reserved on top of the ally's existing deposit.
 		/// Second balance is the total amount reserved.
 		/// `[allychain_id, leaser, period_begin, period_count, extra_reserved, total_amount]`
 		Leased(
-			ParaId,
+			AllyId,
 			T::AccountId,
 			LeasePeriodOf<T>,
 			LeasePeriodOf<T>,
@@ -159,29 +163,29 @@ pub mod pallet {
 		/// Just a connect into the `lease_out` call, in case Root wants to force some lease to happen
 		/// independently of any other on-chain mechanism to use it.
 		///
-		/// Can only be called by the Root origin.
+		/// The dispatch origin for this call must match `T::ForceOrigin`.
 		#[pallet::weight(T::WeightInfo::force_lease())]
 		pub fn force_lease(
 			origin: OriginFor<T>,
-			para: ParaId,
+			ally: AllyId,
 			leaser: T::AccountId,
 			amount: BalanceOf<T>,
 			period_begin: LeasePeriodOf<T>,
 			period_count: LeasePeriodOf<T>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::lease_out(para, &leaser, amount, period_begin, period_count)
+			T::ForceOrigin::ensure_origin(origin)?;
+			Self::lease_out(ally, &leaser, amount, period_begin, period_count)
 				.map_err(|_| Error::<T>::LeaseError)?;
 			Ok(())
 		}
 
-		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
+		/// Clear all leases for a Ally Id, refunding any deposits back to the original owners.
 		///
-		/// Can only be called by the Root origin.
+		/// The dispatch origin for this call must match `T::ForceOrigin`.
 		#[pallet::weight(T::WeightInfo::clear_all_leases())]
-		pub fn clear_all_leases(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
-			let deposits = Self::all_deposits_held(para);
+		pub fn clear_all_leases(origin: OriginFor<T>, ally: AllyId) -> DispatchResult {
+			T::ForceOrigin::ensure_origin(origin)?;
+			let deposits = Self::all_deposits_held(ally);
 
 			// Refund any deposits for these leases
 			for (who, deposit) in deposits {
@@ -189,25 +193,25 @@ pub mod pallet {
 				debug_assert!(err_amount.is_zero());
 			}
 
-			Leases::<T>::remove(para);
+			Leases::<T>::remove(ally);
 			Ok(())
 		}
 
 		/// Try to onboard a allychain that has a lease for the current lease period.
 		///
-		/// This function can be useful if there was some state issue with a para that should
+		/// This function can be useful if there was some state issue with a ally that should
 		/// have onboarded, but was unable to. As long as they have a lease period, we can
 		/// let them onboard from here.
 		///
 		/// Origin must be signed, but can be called by anyone.
 		#[pallet::weight(T::WeightInfo::trigger_onboard())]
-		pub fn trigger_onboard(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+		pub fn trigger_onboard(origin: OriginFor<T>, ally: AllyId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
-			let leases = Leases::<T>::get(para);
+			let leases = Leases::<T>::get(ally);
 			match leases.first() {
 				// If the first element in leases is present, then it has a lease!
 				// We can try to onboard it.
-				Some(Some(_lease_info)) => T::Registrar::make_allychain(para)?,
+				Some(Some(_lease_info)) => T::Registrar::make_allychain(ally)?,
 				// Otherwise, it does not have a lease.
 				Some(None) | None => return Err(Error::<T>::ParaNotOnboarding.into()),
 			};
@@ -228,7 +232,7 @@ impl<T: Config> Pallet<T> {
 
 		// Figure out what chains need bringing on.
 		let mut allychains = Vec::new();
-		for (para, mut lease_periods) in Leases::<T>::iter() {
+		for (ally, mut lease_periods) in Leases::<T>::iter() {
 			if lease_periods.is_empty() {
 				continue
 			}
@@ -237,7 +241,7 @@ impl<T: Config> Pallet<T> {
 			if lease_periods.len() == 1 {
 				// Just one entry, which corresponds to the now-ended lease period.
 				//
-				// `para` is now just a parathread.
+				// `ally` is now just a allythread.
 				//
 				// Unreserve whatever is left.
 				if let Some((who, value)) = &lease_periods[0] {
@@ -245,7 +249,7 @@ impl<T: Config> Pallet<T> {
 				}
 
 				// Remove the now-empty lease list.
-				Leases::<T>::remove(para);
+				Leases::<T>::remove(ally);
 			} else {
 				// The allychain entry has leased future periods.
 
@@ -253,13 +257,13 @@ impl<T: Config> Pallet<T> {
 				// ended lease period.
 				let maybe_ended_lease = lease_periods.remove(0);
 
-				Leases::<T>::insert(para, &lease_periods);
+				Leases::<T>::insert(ally, &lease_periods);
 
 				// If we *were* active in the last period and so have ended a lease...
 				if let Some(ended_lease) = maybe_ended_lease {
 					// Then we need to get the new amount that should continue to be held on
 					// deposit for the allychain.
-					let now_held = Self::deposit_held(para, &ended_lease.0);
+					let now_held = Self::deposit_held(ally, &ended_lease.0);
 
 					// If this is less than what we were holding for this leaser's now-ended lease, then
 					// unreserve it.
@@ -270,24 +274,24 @@ impl<T: Config> Pallet<T> {
 
 				// If we have an active lease in the new period, then add to the current allychains
 				if lease_periods[0].is_some() {
-					allychains.push(para);
+					allychains.push(ally);
 				}
 			}
 		}
 		allychains.sort();
 
-		for para in allychains.iter() {
-			if old_allychains.binary_search(para).is_err() {
+		for ally in allychains.iter() {
+			if old_allychains.binary_search(ally).is_err() {
 				// incoming.
-				let res = T::Registrar::make_allychain(*para);
+				let res = T::Registrar::make_allychain(*ally);
 				debug_assert!(res.is_ok());
 			}
 		}
 
-		for para in old_allychains.iter() {
-			if allychains.binary_search(para).is_err() {
+		for ally in old_allychains.iter() {
+			if allychains.binary_search(ally).is_err() {
 				// outgoing.
-				let res = T::Registrar::make_parathread(*para);
+				let res = T::Registrar::make_allythread(*ally);
 				debug_assert!(res.is_ok());
 			}
 		}
@@ -301,9 +305,9 @@ impl<T: Config> Pallet<T> {
 	// Return a vector of (user, balance) for all deposits for a allychain.
 	// Useful when trying to clean up a allychain leases, as this would tell
 	// you all the balances you need to unreserve.
-	fn all_deposits_held(para: ParaId) -> Vec<(T::AccountId, BalanceOf<T>)> {
+	fn all_deposits_held(ally: AllyId) -> Vec<(T::AccountId, BalanceOf<T>)> {
 		let mut tracker = sp_std::collections::btree_map::BTreeMap::new();
-		Leases::<T>::get(para).into_iter().for_each(|lease| match lease {
+		Leases::<T>::get(ally).into_iter().for_each(|lease| match lease {
 			Some((who, amount)) => match tracker.get(&who) {
 				Some(prev_amount) =>
 					if amount > *prev_amount {
@@ -321,7 +325,7 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> crate::traits::OnSwap for Pallet<T> {
-	fn on_swap(one: ParaId, other: ParaId) {
+	fn on_swap(one: AllyId, other: AllyId) {
 		Leases::<T>::mutate(one, |x| Leases::<T>::mutate(other, |y| sp_std::mem::swap(x, y)))
 	}
 }
@@ -332,7 +336,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	type Currency = T::Currency;
 
 	fn lease_out(
-		para: ParaId,
+		ally: AllyId,
 		leaser: &Self::AccountId,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
@@ -355,7 +359,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		// ID. We need to ensure that it features in `Deposits` to prevent it from being
 		// reaped too early (any managed allychain whose `Deposits` set runs low will be
 		// removed).
-		Leases::<T>::try_mutate(para, |d| {
+		Leases::<T>::try_mutate(ally, |d| {
 			// Left-pad with `None`s as necessary.
 			if d.len() < offset {
 				d.resize_with(offset, || None);
@@ -385,9 +389,9 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 				}
 			}
 
-			// Figure out whether we already have some funds of `leaser` held in reserve for `para_id`.
+			// Figure out whether we already have some funds of `leaser` held in reserve for `ally_id`.
 			//  If so, then we can deduct those from the amount that we need to reserve.
-			let maybe_additional = amount.checked_sub(&Self::deposit_held(para, &leaser));
+			let maybe_additional = amount.checked_sub(&Self::deposit_held(ally, &leaser));
 			if let Some(ref additional) = maybe_additional {
 				T::Currency::reserve(&leaser, *additional)
 					.map_err(|_| LeaseError::ReserveFailed)?;
@@ -399,11 +403,11 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 			// This will allow us to support onboarding new allychains in the middle of a lease period.
 			if current_lease_period == period_begin {
 				// Best effort. Not much we can do if this fails.
-				let _ = T::Registrar::make_allychain(para);
+				let _ = T::Registrar::make_allychain(ally);
 			}
 
 			Self::deposit_event(Event::<T>::Leased(
-				para,
+				ally,
 				leaser.clone(),
 				period_begin,
 				period_count,
@@ -416,10 +420,10 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	}
 
 	fn deposit_held(
-		para: ParaId,
+		ally: AllyId,
 		leaser: &Self::AccountId,
 	) -> <Self::Currency as Currency<Self::AccountId>>::Balance {
-		Leases::<T>::get(para)
+		Leases::<T>::get(ally)
 			.into_iter()
 			.map(|lease| match lease {
 				Some((who, amount)) =>
@@ -449,7 +453,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	}
 
 	fn already_leased(
-		para_id: ParaId,
+		ally_id: AllyId,
 		first_period: Self::LeasePeriod,
 		last_period: Self::LeasePeriod,
 	) -> bool {
@@ -475,7 +479,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		};
 
 		// Get the leases, and check each item in the vec which is part of the range we are checking.
-		let leases = Leases::<T>::get(para_id);
+		let leases = Leases::<T>::get(ally_id);
 		for slot in offset..=offset + period_count {
 			if let Some(Some(_)) = leases.get(slot) {
 				// If there exists any lease period, we exit early and return true.
@@ -494,7 +498,9 @@ mod tests {
 	use super::*;
 
 	use crate::{mock::TestRegistrar, slots};
-	use frame_support::{assert_noop, assert_ok, parameter_types};
+	use ::test_helpers::{dummy_head_data, dummy_validation_code};
+	use frame_support::{assert_noop, assert_ok, allymeter_types};
+	use frame_system::EnsureRoot;
 	use pallet_balances;
 	use primitives::v1::{BlockNumber, Header};
 	use sp_core::H256;
@@ -515,7 +521,7 @@ mod tests {
 		}
 	);
 
-	parameter_types! {
+	allymeter_types! {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
@@ -542,9 +548,10 @@ mod tests {
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();
+		type MaxConsumers = frame_support::traits::ConstU32<16>;
 	}
 
-	parameter_types! {
+	allymeter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
@@ -560,7 +567,7 @@ mod tests {
 		type ReserveIdentifier = [u8; 8];
 	}
 
-	parameter_types! {
+	allymeter_types! {
 		pub const LeasePeriod: BlockNumber = 10;
 		pub static LeaseOffset: BlockNumber = 0;
 		pub const ParaDeposit: u64 = 1;
@@ -572,6 +579,7 @@ mod tests {
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
 		type LeaseOffset = LeaseOffset;
+		type ForceOrigin = EnsureRoot<Self::AccountId>;
 		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
@@ -621,9 +629,9 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 1, 1, 1));
@@ -652,9 +660,9 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert_ok!(Slots::lease_out(1.into(), &1, 6, 1, 1));
@@ -695,9 +703,9 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -745,9 +753,9 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 4, 1, 1).is_ok());
@@ -780,9 +788,9 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			assert!(Slots::lease_out(1.into(), &1, 6, 1, 1).is_ok());
@@ -823,14 +831,14 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			let max_num = 5u32;
 
-			// max_num different people are reserved for leases to Para ID 1
+			// max_num different people are reserved for leases to Ally ID 1
 			for i in 1u32..=max_num {
 				let j: u64 = i.into();
 				assert_ok!(Slots::lease_out(1.into(), &j, j * 10, i * i, i));
@@ -848,7 +856,7 @@ mod tests {
 			}
 
 			// Leases is empty.
-			assert!(Leases::<Test>::get(ParaId::from(1)).is_empty());
+			assert!(Leases::<Test>::get(AllyId::from(1)).is_empty());
 		});
 	}
 
@@ -859,15 +867,15 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				AllyId::from(2),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			run_to_block(20);
@@ -890,46 +898,46 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
-				Default::default(),
-				Default::default()
+				AllyId::from(1),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
-				Default::default(),
-				Default::default()
+				AllyId::from(2),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(3),
-				Default::default(),
-				Default::default()
+				AllyId::from(3),
+				dummy_head_data(),
+				dummy_validation_code()
 			));
 
 			// We will directly manipulate leases to emulate some kind of failure in the system.
-			// Para 1 will have no leases
-			// Para 2 will have a lease period in the current index
-			Leases::<Test>::insert(ParaId::from(2), vec![Some((0, 0))]);
-			// Para 3 will have a lease period in a future index
-			Leases::<Test>::insert(ParaId::from(3), vec![None, None, Some((0, 0))]);
+			// Ally 1 will have no leases
+			// Ally 2 will have a lease period in the current index
+			Leases::<Test>::insert(AllyId::from(2), vec![Some((0, 0))]);
+			// Ally 3 will have a lease period in a future index
+			Leases::<Test>::insert(AllyId::from(3), vec![None, None, Some((0, 0))]);
 
-			// Para 1 should fail cause they don't have any leases
+			// Ally 1 should fail cause they don't have any leases
 			assert_noop!(
 				Slots::trigger_onboard(Origin::signed(1), 1.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
-			// Para 2 should succeed
+			// Ally 2 should succeed
 			assert_ok!(Slots::trigger_onboard(Origin::signed(1), 2.into()));
 
-			// Para 3 should fail cause their lease is in the future
+			// Ally 3 should fail cause their lease is in the future
 			assert_noop!(
 				Slots::trigger_onboard(Origin::signed(1), 3.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
-			// Trying Para 2 again should fail cause they are not currently a parathread
+			// Trying Ally 2 again should fail cause they are not currently a allythread
 			assert!(Slots::trigger_onboard(Origin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
@@ -987,8 +995,8 @@ mod benchmarking {
 		assert_eq!(event, &system_event);
 	}
 
-	fn register_a_parathread<T: Config>(i: u32) -> (ParaId, T::AccountId) {
-		let para = ParaId::from(i);
+	fn register_a_allythread<T: Config>(i: u32) -> (AllyId, T::AccountId) {
+		let ally = AllyId::from(i);
 		let leaser: T::AccountId = account("leaser", i, 0);
 		T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
 		let worst_head_data = T::Registrar::worst_head_data();
@@ -996,78 +1004,78 @@ mod benchmarking {
 
 		assert_ok!(T::Registrar::register(
 			leaser.clone(),
-			para,
+			ally,
 			worst_head_data,
 			worst_validation_code
 		));
 		T::Registrar::execute_pending_transitions();
 
-		(para, leaser)
+		(ally, leaser)
 	}
 
 	benchmarks! {
 		force_lease {
-			let para = ParaId::from(1337);
+			let ally = AllyId::from(1337);
 			let leaser: T::AccountId = account("leaser", 0, 0);
 			T::Currency::make_free_balance_be(&leaser, BalanceOf::<T>::max_value());
 			let amount = T::Currency::minimum_balance();
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
-		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
+		}: _(RawOrigin::Root, ally, leaser.clone(), amount, period_begin, period_count)
 		verify {
-			assert_last_event::<T>(Event::<T>::Leased(para, leaser, period_begin, period_count, amount, amount).into());
+			assert_last_event::<T>(Event::<T>::Leased(ally, leaser, period_begin, period_count, amount, amount).into());
 		}
 
-		// Worst case scenario, T parathreads onboard, and C allychains offboard.
+		// Worst case scenario, T allythreads onboard, and C allychains offboard.
 		manage_lease_period_start {
-			// Assume reasonable maximum of 100 paras at any time
+			// Assume reasonable maximum of 100 allys at any time
 			let c in 1 .. 100;
 			let t in 1 .. 100;
 
 			let period_begin = 1u32.into();
 			let period_count = 4u32.into();
 
-			// Make T parathreads
-			let paras_info = (0..t).map(|i| {
-				register_a_parathread::<T>(i)
+			// Make T allythreads
+			let allys_info = (0..t).map(|i| {
+				register_a_allythread::<T>(i)
 			}).collect::<Vec<_>>();
 
 			T::Registrar::execute_pending_transitions();
 
-			// T parathread are upgrading to allychains
-			for (para, leaser) in paras_info {
+			// T allythread are upgrading to allychains
+			for (ally, leaser) in allys_info {
 				let amount = T::Currency::minimum_balance();
 
-				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+				Slots::<T>::force_lease(RawOrigin::Root.into(), ally, leaser, amount, period_begin, period_count)?;
 			}
 
 			T::Registrar::execute_pending_transitions();
 
-			// C allychains are downgrading to parathreads
+			// C allychains are downgrading to allythreads
 			for i in 200 .. 200 + c {
-				let (para, leaser) = register_a_parathread::<T>(i);
-				T::Registrar::make_allychain(para)?;
+				let (ally, leaser) = register_a_allythread::<T>(i);
+				T::Registrar::make_allychain(ally)?;
 			}
 
 			T::Registrar::execute_pending_transitions();
 
 			for i in 0 .. t {
-				assert!(T::Registrar::is_parathread(ParaId::from(i)));
+				assert!(T::Registrar::is_allythread(AllyId::from(i)));
 			}
 
 			for i in 200 .. 200 + c {
-				assert!(T::Registrar::is_allychain(ParaId::from(i)));
+				assert!(T::Registrar::is_allychain(AllyId::from(i)));
 			}
 		}: {
 				Slots::<T>::manage_lease_period_start(period_begin);
 		} verify {
-			// All paras should have switched.
+			// All allys should have switched.
 			T::Registrar::execute_pending_transitions();
 			for i in 0 .. t {
-				assert!(T::Registrar::is_allychain(ParaId::from(i)));
+				assert!(T::Registrar::is_allychain(AllyId::from(i)));
 			}
 			for i in 200 .. 200 + c {
-				assert!(T::Registrar::is_parathread(ParaId::from(i)));
+				assert!(T::Registrar::is_allythread(AllyId::from(i)));
 			}
 		}
 
@@ -1075,7 +1083,7 @@ mod benchmarking {
 		// This would cover at least 4 years of leases in the worst case scenario.
 		clear_all_leases {
 			let max_people = 8;
-			let (para, _) = register_a_parathread::<T>(1);
+			let (ally, _) = register_a_allythread::<T>(1);
 
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);
@@ -1085,7 +1093,7 @@ mod benchmarking {
 				// Average slot has 4 lease periods.
 				let period_count: LeasePeriodOf<T> = 4u32.into();
 				let period_begin = period_count * i.into();
-				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+				Slots::<T>::force_lease(RawOrigin::Root.into(), ally, leaser, amount, period_begin, period_count)?;
 			}
 
 			for i in 0 .. max_people {
@@ -1093,7 +1101,7 @@ mod benchmarking {
 				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
 			}
 
-		}: _(RawOrigin::Root, para)
+		}: _(RawOrigin::Root, ally)
 		verify {
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);
@@ -1103,14 +1111,14 @@ mod benchmarking {
 
 		trigger_onboard {
 			// get a allychain into a bad state where they did not onboard
-			let (para, _) = register_a_parathread::<T>(1);
-			Leases::<T>::insert(para, vec![Some((T::AccountId::default(), BalanceOf::<T>::default()))]);
-			assert!(T::Registrar::is_parathread(para));
+			let (ally, _) = register_a_allythread::<T>(1);
+			Leases::<T>::insert(ally, vec![Some((account::<T::AccountId>("lease_insert", 0, 0), BalanceOf::<T>::default()))]);
+			assert!(T::Registrar::is_allythread(ally));
 			let caller = whitelisted_caller();
-		}: _(RawOrigin::Signed(caller), para)
+		}: _(RawOrigin::Signed(caller), ally)
 		verify {
 			T::Registrar::execute_pending_transitions();
-			assert!(T::Registrar::is_allychain(para));
+			assert!(T::Registrar::is_allychain(ally));
 		}
 
 		impl_benchmark_test_suite!(

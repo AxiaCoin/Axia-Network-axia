@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A pallet for any shared state that other pallets may want access to.
 //!
@@ -35,12 +35,16 @@ pub use pallet::*;
 // which guarantees that at least one full session has passed before any changes are applied.
 pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
+#[cfg(test)]
+mod tests;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -136,95 +140,5 @@ impl<T: Config> Pallet<T> {
 		assert_eq!(indices.len(), keys.len());
 		ActiveValidatorIndices::<T>::set(indices);
 		ActiveValidatorKeys::<T>::set(keys);
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::{
-		configuration::HostConfiguration,
-		mock::{new_test_ext, MockGenesisConfig, ParasShared},
-	};
-	use keyring::Sr25519Keyring;
-
-	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
-		val_ids.iter().map(|v| v.public().into()).collect()
-	}
-
-	#[test]
-	fn sets_and_shuffles_validators() {
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
-
-		let mut config = HostConfiguration::default();
-		config.max_validators = None;
-
-		let pubkeys = validator_pubkeys(&validators);
-
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
-
-			assert_eq!(
-				validators,
-				validator_pubkeys(&[
-					Sr25519Keyring::Ferdie,
-					Sr25519Keyring::Bob,
-					Sr25519Keyring::Charlie,
-					Sr25519Keyring::Dave,
-					Sr25519Keyring::Alice,
-				])
-			);
-
-			assert_eq!(ParasShared::active_validator_keys(), validators);
-
-			assert_eq!(
-				ParasShared::active_validator_indices(),
-				vec![
-					ValidatorIndex(4),
-					ValidatorIndex(1),
-					ValidatorIndex(2),
-					ValidatorIndex(3),
-					ValidatorIndex(0),
-				]
-			);
-		});
-	}
-
-	#[test]
-	fn sets_truncates_and_shuffles_validators() {
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
-
-		let mut config = HostConfiguration::default();
-		config.max_validators = Some(2);
-
-		let pubkeys = validator_pubkeys(&validators);
-
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
-
-			assert_eq!(
-				validators,
-				validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])
-			);
-
-			assert_eq!(ParasShared::active_validator_keys(), validators);
-
-			assert_eq!(
-				ParasShared::active_validator_indices(),
-				vec![ValidatorIndex(4), ValidatorIndex(1),]
-			);
-		});
 	}
 }

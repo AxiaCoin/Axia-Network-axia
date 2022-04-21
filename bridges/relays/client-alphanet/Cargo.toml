@@ -1,13 +1,12 @@
 [package]
 name = "relay-alphanet-client"
 version = "0.1.0"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "axia-scale-codec", version = "2.0.0" }
-headers-relay = { path = "../headers" }
+codec = { package = "axia-scale-codec", version = "2.2.0" }
 relay-axlib-client = { path = "../client-axlib" }
 relay-utils = { path = "../utils" }
 
@@ -17,9 +16,5 @@ bp-alphanet = { path = "../../primitives/chain-alphanet" }
 
 # Axlib Dependencies
 
-frame-system = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-frame-support = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-transaction-payment = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }

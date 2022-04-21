@@ -1,23 +1,26 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Types used to connect to the Wococo-Axlib chain.
 
 use codec::Encode;
-use relay_axlib_client::{Chain, ChainBase, ChainWithBalances, TransactionSignScheme};
+use relay_axlib_client::{
+	Chain, ChainBase, ChainWithBalances, TransactionEraOf, TransactionSignScheme,
+	UnsignedTransaction,
+};
 use sp_core::{storage::StorageKey, Pair};
 use sp_runtime::{generic::SignedPayload, traits::IdentifyAccount};
 use std::time::Duration;
@@ -39,17 +42,22 @@ impl ChainBase for Wococo {
 	type Hash = bp_wococo::Hash;
 	type Hasher = bp_wococo::Hashing;
 	type Header = bp_wococo::Header;
+
+	type AccountId = bp_wococo::AccountId;
+	type Balance = bp_wococo::Balance;
+	type Index = bp_wococo::Nonce;
+	type Signature = bp_wococo::Signature;
 }
 
 impl Chain for Wococo {
 	const NAME: &'static str = "Wococo";
 	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(6);
+	const STORAGE_PROOF_OVERHEAD: u32 = bp_wococo::EXTRA_STORAGE_PROOF_SIZE;
+	const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = bp_wococo::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE;
 
-	type AccountId = bp_wococo::AccountId;
-	type Index = bp_wococo::Index;
 	type SignedBlock = bp_wococo::SignedBlock;
 	type Call = crate::runtime::Call;
-	type Balance = bp_wococo::Balance;
+	type WeightToFee = bp_wococo::WeightToFee;
 }
 
 impl ChainWithBalances for Wococo {
@@ -66,17 +74,17 @@ impl TransactionSignScheme for Wococo {
 	fn sign_transaction(
 		genesis_hash: <Self::Chain as ChainBase>::Hash,
 		signer: &Self::AccountKeyPair,
-		signer_nonce: <Self::Chain as Chain>::Index,
-		call: <Self::Chain as Chain>::Call,
+		era: TransactionEraOf<Self::Chain>,
+		unsigned: UnsignedTransaction<Self::Chain>,
 	) -> Self::SignedTransaction {
 		let raw_payload = SignedPayload::new(
-			call,
+			unsigned.call,
 			bp_wococo::SignedExtensions::new(
 				bp_wococo::VERSION,
-				sp_runtime::generic::Era::Immortal,
+				era,
 				genesis_hash,
-				signer_nonce,
-				0,
+				unsigned.nonce,
+				unsigned.tip,
 			),
 		)
 		.expect("SignedExtension never fails.");
@@ -91,6 +99,24 @@ impl TransactionSignScheme for Wococo {
 			signature.into(),
 			extra,
 		)
+	}
+
+	fn is_signed(tx: &Self::SignedTransaction) -> bool {
+		tx.signature.is_some()
+	}
+
+	fn is_signed_by(signer: &Self::AccountKeyPair, tx: &Self::SignedTransaction) -> bool {
+		tx.signature
+			.as_ref()
+			.map(|(address, _, _)| {
+				*address == bp_wococo::AccountId::from(*signer.public().as_array_ref()).into()
+			})
+			.unwrap_or(false)
+	}
+
+	fn parse_transaction(tx: Self::SignedTransaction) -> Option<UnsignedTransaction<Self::Chain>> {
+		let extra = &tx.signature.as_ref()?.2;
+		Some(UnsignedTransaction { call: tx.function, nonce: extra.nonce(), tip: extra.tip() })
 	}
 }
 

@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Cross-Consensus Message format data structures.
 
@@ -56,12 +56,12 @@ pub enum Error {
 	/// An asset wildcard was passed where it was not expected (e.g. as the asset to withdraw in a
 	/// `WithdrawAsset` XCM).
 	Wildcard,
-	/// The case where an XCM message has specified a optional weight limit and the weight required for
-	/// processing is too great.
+	/// The case where an XCM message has specified a weight limit on an interior call and this
+	/// limit is too low.
 	///
 	/// Used by:
 	/// - `Transact`
-	TooMuchWeightRequired,
+	MaxWeightInvalid,
 	/// The fees specified by the XCM message were not found in the holding account.
 	///
 	/// Used by:

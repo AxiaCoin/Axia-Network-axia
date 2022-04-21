@@ -1,8 +1,8 @@
 # Protocol Overview
 
-This section aims to describe, at a high level, the actors and protocols involved in running allychains in AXIA. Specifically, we describe how different actors communicate with each other, what data structures they keep both individually and collectively, and the high-level purpose on why they do these things.
+This section aims to describe, at a high level, the actors and protocols involved in running allychains in Axia. Specifically, we describe how different actors communicate with each other, what data structures they keep both individually and collectively, and the high-level purpose on why they do these things.
 
-Our top-level goal is to carry a allychain block from authoring to secure inclusion, and define a process which can be carried out repeatedly and in parallel for many different allychains to extend them over time. Understanding of the high-level approach taken here is important to provide context for the proposed architecture further on. The key parts of AXIA relevant to this are the main AXIA blockchain, known as the relay-chain, and the actors which provide security and inputs to this blockchain.
+Our top-level goal is to carry a allychain block from authoring to secure inclusion, and define a process which can be carried out repeatedly and in parallel for many different allychains to extend them over time. Understanding of the high-level approach taken here is important to provide context for the proposed architecture further on. The key parts of Axia relevant to this are the main Axia blockchain, known as the relay-chain, and the actors which provide security and inputs to this blockchain.
 
 First, it's important to go over the main actors we have involved in this protocol.
 

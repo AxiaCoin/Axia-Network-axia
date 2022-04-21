@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 //
 
 //! Subsystem unit tests
@@ -41,8 +41,9 @@ use axia_node_network_protocol::{
 	IfDisconnected,
 };
 use axia_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
-use axia_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
+use axia_primitives::{
+	v1::{AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex},
+	v2::SessionInfo,
 };
 use axia_subsystem::{
 	messages::{
@@ -363,7 +364,7 @@ fn send_dispute_gets_cleaned_up() {
 		)
 		.await;
 
-		// Yield, so subsystem can make progess:
+		// Yield, so subsystem can make progress:
 		Delay::new(Duration::from_millis(2)).await;
 
 		conclude(&mut handle).await;
@@ -582,7 +583,7 @@ async fn conclude(handle: &mut TestSubsystemContextHandle<DisputeDistributionMes
 	poll_fn(|ctx| {
 		let fut = handle.recv();
 		pin_mut!(fut);
-		// No requests should be inititated, as there is no longer any dispute active:
+		// No requests should be initiated, as there is no longer any dispute active:
 		assert_matches!(fut.poll(ctx), Poll::Pending, "No requests expected");
 		Poll::Ready(())
 	})
@@ -663,7 +664,7 @@ async fn check_sent_requests(
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::TryConnect)
+			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(

@@ -1,18 +1,18 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Primitives of messages module, that are used on the target chain.
 
@@ -76,7 +76,7 @@ pub trait SourceHeaderChain<Fee> {
 	/// messages will be rejected.
 	///
 	/// The `messages_count` argument verification (sane limits) is supposed to be made
-	/// outside of this function. This function only verifies that the proof declares exactly
+	/// outside this function. This function only verifies that the proof declares exactly
 	/// `messages_count` messages.
 	fn verify_messages_proof(
 		proof: Self::MessagesProof,
@@ -112,23 +112,19 @@ pub trait MessageDispatch<AccountId, Fee> {
 
 impl<Message> Default for ProvedLaneMessages<Message> {
 	fn default() -> Self {
-		ProvedLaneMessages {
-			lane_state: None,
-			messages: Vec::new(),
-		}
+		ProvedLaneMessages { lane_state: None, messages: Vec::new() }
 	}
 }
 
 impl<DispatchPayload: Decode, Fee> From<Message<Fee>> for DispatchMessage<DispatchPayload, Fee> {
 	fn from(message: Message<Fee>) -> Self {
-		DispatchMessage {
-			key: message.key,
-			data: message.data.into(),
-		}
+		DispatchMessage { key: message.key, data: message.data.into() }
 	}
 }
 
-impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>> for DispatchMessageData<DispatchPayload, Fee> {
+impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>>
+	for DispatchMessageData<DispatchPayload, Fee>
+{
 	fn from(data: MessageData<Fee>) -> Self {
 		DispatchMessageData {
 			payload: DispatchPayload::decode(&mut &data.payload[..]),
@@ -142,7 +138,8 @@ impl<DispatchPayload: Decode, Fee> From<MessageData<Fee>> for DispatchMessageDat
 pub struct ForbidInboundMessages;
 
 /// Error message that is used in `ForbidOutboundMessages` implementation.
-const ALL_INBOUND_MESSAGES_REJECTED: &str = "This chain is configured to reject all inbound messages";
+const ALL_INBOUND_MESSAGES_REJECTED: &str =
+	"This chain is configured to reject all inbound messages";
 
 impl<Fee> SourceHeaderChain<Fee> for ForbidInboundMessages {
 	type Error = &'static str;
@@ -163,7 +160,10 @@ impl<AccountId, Fee> MessageDispatch<AccountId, Fee> for ForbidInboundMessages {
 		Weight::MAX
 	}
 
-	fn dispatch(_: &AccountId, _: DispatchMessage<Self::DispatchPayload, Fee>) -> MessageDispatchResult {
+	fn dispatch(
+		_: &AccountId,
+		_: DispatchMessage<Self::DispatchPayload, Fee>,
+	) -> MessageDispatchResult {
 		MessageDispatchResult {
 			dispatch_result: false,
 			unspent_weight: 0,

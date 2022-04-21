@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! # Overseer
 //!
@@ -111,6 +111,8 @@ pub enum ToOverseer {
 	SpawnJob {
 		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// Subsystem of the task to spawn which be shown in jaeger and tracing logs.
+		subsystem: Option<&'static str>,
 		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
@@ -120,6 +122,8 @@ pub enum ToOverseer {
 	SpawnBlockingJob {
 		/// Name of the task to spawn which be shown in jaeger and tracing logs.
 		name: &'static str,
+		/// Subsystem of the task to spawn which be shown in jaeger and tracing logs.
+		subsystem: Option<&'static str>,
 		/// The future to execute.
 		s: BoxFuture<'static, ()>,
 	},
@@ -128,8 +132,12 @@ pub enum ToOverseer {
 impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::SpawnJob { name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
-			Self::SpawnBlockingJob { name, .. } => writeln!(f, "SpawnBlockingJob{{ {}, ..}}", name),
+			Self::SpawnJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnJob{{ {}, {} ..}}", name, subsystem.unwrap_or("default"))
+			},
+			Self::SpawnBlockingJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnBlockingJob{{ {}, {} ..}}", name, subsystem.unwrap_or("default"))
+			},
 		}
 	}
 }

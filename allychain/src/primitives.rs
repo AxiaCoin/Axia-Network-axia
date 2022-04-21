@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Primitive types which are strictly necessary from a allychain-execution point
 //! of view.
@@ -20,7 +20,7 @@
 use sp_std::vec::Vec;
 
 use frame_support::weights::Weight;
-use axia_scale_codec::{CompactAs, Decode, Encode};
+use axia_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
@@ -43,7 +43,7 @@ pub use axia_core_primitives::BlockNumber as RelayChainBlockNumber;
 #[derive(
 	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {
@@ -54,9 +54,7 @@ impl HeadData {
 }
 
 /// Allychain validation code.
-#[derive(
-	Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
-)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
@@ -72,7 +70,7 @@ impl ValidationCode {
 /// This type is produced by [`ValidationCode::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct ValidationCodeHash(Hash);
 
@@ -115,8 +113,8 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 /// Allychain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, MallocSizeOf))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a allychain.
@@ -129,6 +127,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	Encode,
 	Eq,
 	Hash,
+	MaxEncodedLen,
 	Ord,
 	PartialEq,
 	PartialOrd,
@@ -177,10 +176,10 @@ impl From<usize> for Id {
 // this one.
 //
 // Instead, let's take advantage of the observation that what really matters for a
-// ParaId within a test context is that it is unique and constant. I believe that
+// AllyId within a test context is that it is unique and constant. I believe that
 // there is no case where someone does `(-1).into()` anyway, but if they do, it
 // never matters whether the actual contained ID is `-1` or `4294967295`. Nobody
-// does arithmetic on a `ParaId`; doing so would be a bug.
+// does arithmetic on a `AllyId`; doing so would be a bug.
 impl From<i32> for Id {
 	fn from(x: i32) -> Self {
 		Id(x as u32)
@@ -306,11 +305,11 @@ impl<'a> axia_scale_codec::Input for TrailingZeroInput<'a> {
 
 /// Format is b"para" ++ encode(allychain ID) ++ 00.... where 00... is indefinite trailing
 /// zeroes to fill [`AccountId`].
-impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
+impl<T: Encode + Decode> AccountIdConversion<T> for Id {
 	fn into_account(&self) -> T {
 		(b"para", self)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
-			.unwrap_or_default()
+			.expect("infinite length input; no invalid inputs for type; qed")
 	}
 
 	fn try_from_account(x: &T) -> Option<Self> {
@@ -334,14 +333,14 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 /// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
 /// that we use the first item tuple for the sender and the second for the recipient. Only one channel
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
-/// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
+/// identified by `(A, B)`. A channel with the same ally id in sender and recipient is invalid. That
 /// is, however, not enforced.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
-	/// The para that acts as the sender in this channel.
+	/// The ally that acts as the sender in this channel.
 	pub sender: Id,
-	/// The para that acts as the recipient in this channel.
+	/// The ally that acts as the recipient in this channel.
 	pub recipient: Id,
 }
 
@@ -409,7 +408,7 @@ impl XcmpMessageHandler for () {
 }
 
 /// Validation parameters for evaluating the allychain validity function.
-// TODO: balance downloads (https://github.com/axia/axia/issues/220)
+// TODO: balance downloads (https://github.com/axiatech/axia/issues/220)
 #[derive(PartialEq, Eq, Decode, Clone)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
@@ -424,7 +423,7 @@ pub struct ValidationParams {
 }
 
 /// The result of allychain validation.
-// TODO: balance uploads (https://github.com/axia/axia/issues/220)
+// TODO: balance uploads (https://github.com/axiatech/axia/issues/220)
 #[derive(PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "std", derive(Debug, Decode))]
 pub struct ValidationResult {

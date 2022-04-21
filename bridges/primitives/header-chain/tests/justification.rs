@@ -1,18 +1,18 @@
-// Copyright 2020-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2020-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Tests for Grandpa Justification code.
 
@@ -136,7 +136,8 @@ fn justification_with_invalid_commit_rejected() {
 #[test]
 fn justification_with_invalid_authority_signature_rejected() {
 	let mut justification = make_default_justification::<TestHeader>(&test_header(1));
-	justification.commit.precommits[0].signature = Default::default();
+	justification.commit.precommits[0].signature =
+		sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]);
 
 	assert_eq!(
 		verify_justification::<TestHeader>(

@@ -13,7 +13,7 @@ Storage related to UMP
 /// channel management messages.
 ///
 /// The messages are processed in FIFO order.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
+RelayDispatchQueues: map AllyId => Vec<UpwardMessage>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 ///
 /// First item in the tuple is the count of messages and second
@@ -25,19 +25,19 @@ RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
 ///
 /// Invariant:
 /// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
-RelayDispatchQueueSize: map ParaId => (u32, u32); // (num_messages, total_bytes)
-/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
+RelayDispatchQueueSize: map AllyId => (u32, u32); // (num_messages, total_bytes)
+/// The ordered list of `AllyId`s that have a `RelayDispatchQueue` entry.
 ///
 /// Invariant:
 /// - The set of items from this vector should be exactly the set of the keys in
 ///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
-NeedsDispatch: Vec<ParaId>;
-/// This is the para that gets dispatched first during the next upward dispatchable queue
+NeedsDispatch: Vec<AllyId>;
+/// This is the ally that gets dispatched first during the next upward dispatchable queue
 /// execution round.
 ///
 /// Invariant:
 /// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
-NextDispatchRoundStartWith: Option<ParaId>;
+NextDispatchRoundStartWith: Option<AllyId>;
 ```
 
 
@@ -49,14 +49,14 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`):
+* `check_upward_messages(P: AllyId, Vec<UpwardMessage>`):
     1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
     1. Checks that no message exceeds `config.max_upward_message_size`.
     1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the messages
 
 Candidate Enactment:
 
-* `receive_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+* `receive_upward_messages(P: AllyId, Vec<UpwardMessage>)`:
     1. Process each upward message `M` in order:
         1. Append the message to `RelayDispatchQueues` for `P`
         1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.

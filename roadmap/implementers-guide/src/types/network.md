@@ -101,7 +101,7 @@ enum StatementDistributionV1Message {
 enum CollatorProtocolV1Message {
 	/// Declare the intent to advertise collations under a collator ID and `Para`, attaching a
 	/// signature of the `PeerId` of the node using the given collator ID key.
-	Declare(CollatorId, ParaId, CollatorSignature),
+	Declare(CollatorId, AllyId, CollatorSignature),
 	/// Advertise a collation to a validator. Can only be sent once the peer has
 	/// declared that they are a collator with given ID.
 	AdvertiseCollation(Hash),
@@ -144,7 +144,7 @@ These updates are posted from the [Network Bridge Subsystem](../node/utility/net
 ```rust
 enum NetworkBridgeEvent<M> {
 	/// A peer with given ID is now connected.
-	PeerConnected(PeerId, ObservedRole),
+	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
 	/// A peer with given ID is now disconnected.
 	PeerDisconnected(PeerId),
 	/// Our neighbors in the new gossip topology.

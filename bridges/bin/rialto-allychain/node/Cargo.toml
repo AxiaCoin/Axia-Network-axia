@@ -1,0 +1,89 @@
+[package]
+name = "rialto-allychain-collator"
+version = "0.1.0"
+authors = ["Axia Technologies <admin@axia.io>"]
+edition = "2018"
+homepage = "https://axlib.dev"
+repository = "https://github.com/axiatech/axia-bridges-common/"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[build-dependencies]
+axlib-build-script-utils = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+[[bin]]
+name = 'rialto-allychain-collator'
+
+[features]
+default = []
+runtime-benchmarks = ['rialto-allychain-runtime/runtime-benchmarks']
+
+[dependencies]
+derive_more = '0.99.2'
+log = '0.4.14'
+codec = { package = 'axia-scale-codec', version = '2.0.0' }
+structopt = '0.3.8'
+serde = { version = '1.0', features = ['derive'] }
+hex-literal = '0.3.1'
+
+# RPC related Dependencies
+jsonrpc-core = '18.0'
+
+# Local Dependencies
+rialto-allychain-runtime = { path = '../runtime' }
+
+# Axlib Dependencies
+frame-benchmarking = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+frame-benchmarking-cli = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+pallet-transaction-payment-rpc = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+axlib-frame-rpc-system = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+axlib-prometheus-endpoint = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+## Axlib Client Dependencies
+sc-basic-authorship = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-chain-spec = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-cli = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-client-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-consensus = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-executor = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-network = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-rpc = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-rpc-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-service = { git = "https://github.com/axia-tech/axlib", features = ['wasmtime'] , branch = "axlib" }
+sc-telemetry = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-transaction-pool = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-tracing = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+## Axlib Primitive Dependencies
+sp-api = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-block-builder = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-blockchain = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-consensus = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-consensus-aura = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-inherents = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-offchain = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-session = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-timestamp = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-transaction-pool = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+
+# Cumulus dependencies
+cumulus-client-consensus-aura = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-client-consensus-common = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-client-collator = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-client-cli = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-client-network = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-client-service = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-primitives-core = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+cumulus-primitives-allychain-inherent = { git = "https://github.com/axiatech/cumulus", branch = "master" }
+
+# Axia dependencies
+axia-cli = { git = "https://github.com/axiatech/axia", branch = "master" }
+axia-allychain = { git = "https://github.com/axiatech/axia", branch = "master" }
+axia-primitives = { git = "https://github.com/axiatech/axia", branch = "master" }
+axia-service = { git = "https://github.com/axiatech/axia", branch = "master" }
+axia-test-service = { git = "https://github.com/axiatech/axia", branch = "master" }

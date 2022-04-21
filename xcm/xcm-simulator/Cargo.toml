@@ -1,17 +1,17 @@
 [package]
 name = "xcm-simulator"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 description = "Test kit to simulate cross-chain message passing and XCM execution"
 edition = "2018"
 
 [dependencies]
 codec = { package = "axia-scale-codec", version = "2.0.0" }
-paste = "1.0.5"
+paste = "1.0.6"
 
-frame-support = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-io = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-std = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+frame-support = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-io = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-std = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 xcm = { path = "../" }
 xcm-executor = { path = "../xcm-executor" }

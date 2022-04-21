@@ -6,15 +6,15 @@ on:
     inputs:
       reference_url:
         description: The WebSocket url of the reference node
-        default: wss://axiatest-rpc.axia.io
+        default: wss://axctest-rpc.axia.io
         required: true
       binary_url:
         description: A url to a Linux binary for the node containing the runtime to test
-        default: https://releases.axiacoin.network/axia/x86_64-debian:stretch/v0.9.10/axia
+        default: https://releases.axia.io/axia/x86_64-debian:stretch/v0.9.10/axia
         required: true
       chain:
         description: The name of the chain under test. Usually, you would pass a local chain
-        default: axiatest-local
+        default: axctest-local
         required: true
 
 jobs:
@@ -27,7 +27,8 @@ jobs:
       REF_URL: ${{github.event.inputs.reference_url}}
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
       - name: Fetch binary
         run: |

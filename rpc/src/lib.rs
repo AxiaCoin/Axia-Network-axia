@@ -1,30 +1,27 @@
-// Copyright 2019-2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2019-2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA-specific RPCs implementation.
+//! Axia-specific RPCs implementation.
 
 #![warn(missing_docs)]
 
 use std::sync::Arc;
 
 use axia_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
-use sc_client_api::{
-	light::{Fetcher, RemoteBlockchain},
-	AuxStore,
-};
+use sc_client_api::AuxStore;
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
@@ -39,18 +36,6 @@ use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
-
-/// Light client extra dependencies.
-pub struct LightDeps<C, F, P> {
-	/// The client instance to use.
-	pub client: Arc<C>,
-	/// Transaction pool instance.
-	pub pool: Arc<P>,
-	/// Remote access to the blockchain (async).
-	pub remote_blockchain: Arc<dyn RemoteBlockchain<Block>>,
-	/// Fetcher instance.
-	pub fetcher: Arc<F>,
-}
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -76,10 +61,13 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+use beefy_gadget::notification::{BeefyBestBlockStream, BeefySignedCommitmentStream};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: beefy_gadget::notification::BeefySignedCommitmentStream<Block>,
+	pub beefy_commitment_stream: BeefySignedCommitmentStream<Block>,
+	/// Receives notifications about best block events from BEEFY.
+	pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
@@ -170,36 +158,12 @@ where
 		deny_unsafe,
 	)?));
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
-			beefy.beefy_commitment_stream,
-			beefy.subscription_executor,
-		),
-	));
+	let handler: beefy_gadget_rpc::BeefyRpcHandler<Block> = beefy_gadget_rpc::BeefyRpcHandler::new(
+		beefy.beefy_commitment_stream,
+		beefy.beefy_best_block_stream,
+		beefy.subscription_executor,
+	)?;
+	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(handler));
 
 	Ok(io)
-}
-
-/// Instantiate all RPC extensions for light node.
-pub fn create_light<C, P, F>(deps: LightDeps<C, F, P>) -> RpcExtension
-where
-	C: ProvideRuntimeApi<Block>,
-	C: HeaderBackend<Block>,
-	C: Send + Sync + 'static,
-	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	P: TransactionPool + Sync + Send + 'static,
-	F: Fetcher<Block> + 'static,
-{
-	use frame_rpc_system::{LightSystem, SystemApi};
-
-	let LightDeps { client, pool, remote_blockchain, fetcher } = deps;
-	let mut io = jsonrpc_core::IoHandler::default();
-	io.extend_with(SystemApi::<Hash, AccountId, Nonce>::to_delegate(LightSystem::new(
-		client,
-		remote_blockchain,
-		fetcher,
-		pool,
-	)));
-	io
 }

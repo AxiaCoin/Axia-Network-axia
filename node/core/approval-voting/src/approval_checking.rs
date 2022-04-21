@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Utilities for checking whether a candidate has been approved under a given block.
 
@@ -457,25 +457,24 @@ pub fn tranches_to_approve(
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
+	use crate::{approval_db, BTreeMap};
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0, vec::BitVec};
 	use axia_primitives::v1::GroupIndex;
-
-	use crate::approval_db;
 
 	#[test]
 	fn pending_is_not_approved() {
 		let candidate = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
-			approvals: Default::default(),
+			block_assignments: BTreeMap::default(),
+			approvals: BitVec::default(),
 		}
 		.into();
 
 		let approval_entry = approval_db::v1::ApprovalEntry {
 			tranches: Vec::new(),
-			assignments: Default::default(),
+			assignments: BitVec::default(),
 			our_assignment: None,
 			our_approval_sig: None,
 			backing_group: GroupIndex(0),
@@ -499,9 +498,9 @@ mod tests {
 	#[test]
 	fn exact_takes_only_assignments_up_to() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}
 		.into();
@@ -571,9 +570,9 @@ mod tests {
 	#[test]
 	fn one_honest_node_always_approves() {
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 10],
 		}
 		.into();
@@ -1031,9 +1030,9 @@ mod tests {
 		let needed_approvals = 3;
 
 		let mut candidate: CandidateEntry = approval_db::v1::CandidateEntry {
-			candidate: Default::default(),
+			candidate: dummy_candidate_receipt(dummy_hash()),
 			session: 0,
-			block_assignments: Default::default(),
+			block_assignments: BTreeMap::default(),
 			approvals: bitvec![BitOrderLsb0, u8; 0; 3],
 		}
 		.into();

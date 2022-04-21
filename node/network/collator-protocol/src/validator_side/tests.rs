@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
 use assert_matches::assert_matches;
@@ -30,8 +30,11 @@ use axia_node_network_protocol::{
 use axia_node_primitives::BlockData;
 use axia_node_subsystem_util::TimeoutExt;
 use axia_primitives::v1::{
-	CandidateDescriptor, CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore,
-	ScheduledCore, ValidatorId, ValidatorIndex,
+	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
+	ValidatorId, ValidatorIndex,
+};
+use axia_primitives_test_helpers::{
+	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
 };
 use axia_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 use axia_subsystem_testhelpers as test_helpers;
@@ -41,10 +44,9 @@ const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
 
 #[derive(Clone)]
 struct TestState {
-	chain_ids: Vec<ParaId>,
+	chain_ids: Vec<AllyId>,
 	relay_parent: Hash,
 	collators: Vec<CollatorPair>,
-	validators: Vec<Sr25519Keyring>,
 	validator_public: Vec<ValidatorId>,
 	validator_groups: Vec<Vec<ValidatorIndex>>,
 	group_rotation_info: GroupRotationInfo,
@@ -53,8 +55,8 @@ struct TestState {
 
 impl Default for TestState {
 	fn default() -> Self {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = AllyId::from(1);
+		let chain_b = AllyId::from(2);
 
 		let chain_ids = vec![chain_a, chain_b];
 		let relay_parent = Hash::repeat_byte(0x05);
@@ -79,7 +81,7 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 1, now: 0 };
 
 		let cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
+			CoreState::Scheduled(ScheduledCore { ally_id: chain_ids[0], collator: None }),
 			CoreState::Free,
 			CoreState::Occupied(OccupiedCore {
 				next_up_on_available: None,
@@ -90,8 +92,8 @@ impl Default for TestState {
 				group_responsible: GroupIndex(0),
 				candidate_hash: Default::default(),
 				candidate_descriptor: {
-					let mut d = CandidateDescriptor::default();
-					d.para_id = chain_ids[1];
+					let mut d = dummy_candidate_descriptor(dummy_hash());
+					d.ally_id = chain_ids[1];
 
 					d
 				},
@@ -102,7 +104,6 @@ impl Default for TestState {
 			chain_ids,
 			relay_parent,
 			collators,
-			validators,
 			validator_public,
 			validator_groups,
 			group_rotation_info,
@@ -241,7 +242,7 @@ async fn respond_to_core_info_queries(
 async fn assert_candidate_backing_second(
 	virtual_overseer: &mut VirtualOverseer,
 	expected_relay_parent: Hash,
-	expected_para_id: ParaId,
+	expected_ally_id: AllyId,
 	expected_pov: &PoV,
 ) -> CandidateReceipt {
 	assert_matches!(
@@ -249,7 +250,7 @@ async fn assert_candidate_backing_second(
 		AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
 	) => {
 		assert_eq!(expected_relay_parent, relay_parent);
-		assert_eq!(expected_para_id, candidate_receipt.descriptor.para_id);
+		assert_eq!(expected_ally_id, candidate_receipt.descriptor.ally_id);
 		assert_eq!(*expected_pov, incoming_pov);
 		candidate_receipt
 	})
@@ -273,7 +274,7 @@ async fn assert_collator_disconnect(virtual_overseer: &mut VirtualOverseer, expe
 async fn assert_fetch_collation_request(
 	virtual_overseer: &mut VirtualOverseer,
 	relay_parent: Hash,
-	para_id: ParaId,
+	ally_id: AllyId,
 ) -> ResponseSender {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
@@ -285,7 +286,7 @@ async fn assert_fetch_collation_request(
 			Requests::CollationFetching(req) => {
 				let payload = req.payload;
 				assert_eq!(payload.relay_parent, relay_parent);
-				assert_eq!(payload.para_id, para_id);
+				assert_eq!(payload.ally_id, ally_id);
 				req.pending_response
 			}
 			_ => panic!("Unexpected request"),
@@ -298,7 +299,7 @@ async fn connect_and_declare_collator(
 	virtual_overseer: &mut VirtualOverseer,
 	peer: PeerId,
 	collator: CollatorPair,
-	para_id: ParaId,
+	ally_id: AllyId,
 ) {
 	overseer_send(
 		virtual_overseer,
@@ -316,7 +317,7 @@ async fn connect_and_declare_collator(
 			peer.clone(),
 			protocol_v1::CollatorProtocolMessage::Declare(
 				collator.public(),
-				para_id,
+				ally_id,
 				collator.sign(&protocol_v1::declare_signature_payload(&peer)),
 			),
 		)),
@@ -494,7 +495,7 @@ fn collator_authentication_verification_works() {
 //	our view.
 //	- Collation protocol should request one PoV.
 //	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators plus an additional collator connect again and send povs for a different relay parent.
+//	- The same collators plus an additional collator connect again and send `PoV`s for a different relay parent.
 //	- Collation protocol will request one PoV, but we will cancel it.
 //	- Collation protocol should request the second PoV which does not succeed in time.
 //	- Collation protocol should request third PoV.
@@ -553,8 +554,9 @@ fn fetch_collations_works() {
 		);
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
-		candidate_a.descriptor.para_id = test_state.chain_ids[0];
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
+		candidate_a.descriptor.ally_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
@@ -622,17 +624,6 @@ fn fetch_collations_works() {
 		assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 			.await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		let response_channel_non_exclusive =
 			assert_fetch_collation_request(&mut virtual_overseer, second, test_state.chain_ids[0])
 				.await;
@@ -645,8 +636,9 @@ fn fetch_collations_works() {
 				.await;
 
 		let pov = PoV { block_data: BlockData(vec![1]) };
-		let mut candidate_a = CandidateReceipt::default();
-		candidate_a.descriptor.para_id = test_state.chain_ids[0];
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
+		candidate_a.descriptor.ally_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = second;
 
 		// First request finishes now:
@@ -672,6 +664,50 @@ fn fetch_collations_works() {
 
 		virtual_overseer
 	});
+}
+
+#[test]
+fn reject_connection_to_next_group() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[1].clone(), // next, not current `ally_id`
+		)
+		.await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+			}
+		);
+
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
+
+		virtual_overseer
+	})
 }
 
 // Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
@@ -725,8 +761,9 @@ fn fetch_next_collation_on_invalid_collation() {
 		.await;
 
 		let pov = PoV { block_data: BlockData(vec![]) };
-		let mut candidate_a = CandidateReceipt::default();
-		candidate_a.descriptor.para_id = test_state.chain_ids[0];
+		let mut candidate_a =
+			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
+		candidate_a.descriptor.ally_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
 			.send(Ok(
@@ -813,17 +850,6 @@ fn inactive_disconnected() {
 
 		Delay::new(ACTIVITY_TIMEOUT * 3).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
 		virtual_overseer
 	});
@@ -876,17 +902,6 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_b).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_fetch_collation_request(&mut virtual_overseer, hash_b, test_state.chain_ids[0])
 			.await;
 
@@ -894,32 +909,10 @@ fn activity_extends_life() {
 
 		advertise_collation(&mut virtual_overseer, peer_b.clone(), hash_c).await;
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
-
 		assert_fetch_collation_request(&mut virtual_overseer, hash_c, test_state.chain_ids[0])
 			.await;
 
 		Delay::new(ACTIVITY_TIMEOUT * 3 / 2).await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
-				peer,
-				rep,
-			)) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-			}
-		);
 
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
 
@@ -999,7 +992,7 @@ fn disconnect_if_wrong_declare() {
 				peer_b.clone(),
 				protocol_v1::CollatorProtocolMessage::Declare(
 					pair.public(),
-					ParaId::from(69),
+					AllyId::from(69),
 					pair.sign(&protocol_v1::declare_signature_payload(&peer_b)),
 				),
 			)),

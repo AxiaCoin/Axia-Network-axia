@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
 use xcm::latest::{Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult};
@@ -58,6 +58,9 @@ pub trait VersionChangeNotifier {
 	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 	/// notification set up.
 	fn stop(location: &MultiLocation) -> XcmResult;
+
+	/// Return true if a location is subscribed to XCM version changes.
+	fn is_subscribed(location: &MultiLocation) -> bool;
 }
 
 impl VersionChangeNotifier for () {
@@ -66,5 +69,8 @@ impl VersionChangeNotifier for () {
 	}
 	fn stop(_: &MultiLocation) -> XcmResult {
 		Err(XcmError::Unimplemented)
+	}
+	fn is_subscribed(_: &MultiLocation) -> bool {
+		false
 	}
 }

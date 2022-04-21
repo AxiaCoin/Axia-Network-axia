@@ -1,12 +1,16 @@
 {
-	"--1": "BetaNet Types",
-	"BetaNetBalance": "u128",
-	"BetaNetBlockHash": "H256",
-	"BetaNetBlockNumber": "u32",
-	"BetaNetHeader": "Header",
+	"--1": "Betanet Types",
+	"BetanetAddress": "AccountId",
+	"BetanetLookupSource": "AccountId",
+	"BetanetBalance": "u128",
+	"BetanetBlockHash": "H256",
+	"BetanetBlockNumber": "u32",
+	"BetanetHeader": "Header",
 	"--2": "Wococo Types",
-	"WococoBalance": "BetaNetBalance",
-	"WococoBlockHash": "BetaNetBlockHash",
-	"WococoBlockNumber": "BetaNetBlockNumber",
-	"WococoHeader": "BetaNetHeader"
+	"WococoAddress": "AccountId",
+	"WococoLookupSource": "AccountId",
+	"WococoBalance": "BetanetBalance",
+	"WococoBlockHash": "BetanetBlockHash",
+	"WococoBlockNumber": "BetanetBlockNumber",
+	"WococoHeader": "BetanetHeader"
 }

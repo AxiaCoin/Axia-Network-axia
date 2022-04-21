@@ -1,12 +1,12 @@
 [package]
 name = "axia-node-core-backing"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
-sp-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+futures = "0.3.21"
+sp-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 axia-primitives = { path = "../../../primitives" }
 axia-node-primitives = { path = "../../primitives" }
 axia-subsystem = { package = "axia-node-subsystem", path = "../../subsystem" }
@@ -18,11 +18,12 @@ tracing = "0.1.29"
 thiserror = "1.0.30"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-application-crypto = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-keyring = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sc-keystore = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-sp-tracing = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-futures = { version = "0.3.17", features = ["thread-pool"] }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-application-crypto = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-keyring = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sc-keystore = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+sp-tracing = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 axia-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+test-helpers = { package = "axia-primitives-test-helpers", path = "../../../primitives/test-helpers" }

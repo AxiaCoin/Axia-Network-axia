@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Tests for the aux-schema of approval voting.
 
@@ -22,8 +22,10 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use kvdb::KeyValueDB;
-use axia_primitives::v1::Id as ParaId;
+use axia_primitives::v1::Id as AllyId;
 use std::{collections::HashMap, sync::Arc};
+
+use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -58,10 +60,10 @@ fn make_block_entry(
 	}
 }
 
-fn make_candidate(para_id: ParaId, relay_parent: Hash) -> CandidateReceipt {
-	let mut c = CandidateReceipt::default();
+fn make_candidate(ally_id: AllyId, relay_parent: Hash) -> CandidateReceipt {
+	let mut c = dummy_candidate_receipt(dummy_hash());
 
-	c.descriptor.para_id = para_id;
+	c.descriptor.ally_id = ally_id;
 	c.descriptor.relay_parent = relay_parent;
 
 	c
@@ -73,7 +75,7 @@ fn read_write() {
 
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
-	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
+	let candidate_hash = dummy_candidate_receipt_bad_sig(dummy_hash(), None).hash();
 
 	let range = StoredBlockRange(10, 20);
 	let at_height = vec![hash_a, hash_b];
@@ -82,7 +84,7 @@ fn read_write() {
 		make_block_entry(hash_a, Default::default(), 1, vec![(CoreIndex(0), candidate_hash)]);
 
 	let candidate_entry = CandidateEntry {
-		candidate: Default::default(),
+		candidate: dummy_candidate_receipt_bad_sig(dummy_hash(), None),
 		session: 5,
 		block_assignments: vec![(
 			hash_a,

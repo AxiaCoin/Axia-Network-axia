@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use axia_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -40,6 +40,13 @@ use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature}
 /// enforces a valid signature again.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct Signed<Payload, RealPayload = Payload>(UncheckedSigned<Payload, RealPayload>);
+
+impl<Payload, RealPayload> Signed<Payload, RealPayload> {
+	/// Convert back to an unchecked type.
+	pub fn into_unchecked(self) -> UncheckedSigned<Payload, RealPayload> {
+		self.0
+	}
+}
 
 /// Unchecked signed data, can be converted to `Signed` by checking the signature.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug, Encode, Decode, TypeInfo)]
@@ -143,7 +150,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 }
 
-// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// We can't bound this on `Payload: Into<RealPayload>` because that conversion consumes
 // the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
 // because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
 // own trait which does what we need: EncodeAs.
@@ -207,7 +214,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
-		// equivalent to (real_payload, context).encode()
+		// equivalent to (`real_payload`, context).encode()
 		let mut out = payload.encode_as();
 		out.extend(context.encode());
 		out
@@ -240,8 +247,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		}))
 	}
 
-	/// Validate the payload given the context and public key.
-	fn check_signature<H: Encode>(
+	/// Validate the payload given the context and public key
+	/// without creating a `Signed` type.
+	pub fn check_signature<H: Encode>(
 		&self,
 		context: &SigningContext<H>,
 		key: &ValidatorId,
@@ -252,6 +260,33 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		} else {
 			Err(())
 		}
+	}
+
+	/// Sign this payload with the given context and pair.
+	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	pub fn benchmark_sign<H: Encode>(
+		public: &crate::v0::ValidatorId,
+		payload: Payload,
+		context: &SigningContext<H>,
+		validator_index: ValidatorIndex,
+	) -> Self {
+		use application_crypto::RuntimeAppPublic;
+		let data = Self::payload_data(&payload, context);
+		let signature = public.sign(&data).unwrap();
+
+		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
+	}
+
+	/// Immutably access the signature.
+	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	pub fn benchmark_signature(&self) -> ValidatorSignature {
+		self.signature.clone()
+	}
+
+	/// Set the signature. Only should be used for creating testing mocks.
+	#[cfg(feature = "std")]
+	pub fn set_signature(&mut self, signature: ValidatorSignature) {
+		self.signature = signature
 	}
 }
 

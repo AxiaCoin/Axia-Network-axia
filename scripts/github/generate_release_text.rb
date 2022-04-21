@@ -53,9 +53,9 @@ renderer = ERB.new(
 last_ref = 'refs/tags/' + github_client.latest_release(ENV['GITHUB_REPOSITORY']).tag_name
 logger("Last ref: " + last_ref)
 
-logger("Generate changelog for AXIA")
+logger("Generate changelog for Axia")
 axia_cl = Changelog.new(
-  'axia/axia', last_ref, current_ref, token: token
+  'axiatech/axia', last_ref, current_ref, token: token
 )
 
 # Gets the axlib commit hash used for a given axia ref
@@ -77,7 +77,7 @@ axlib_cur_sha = get_axlib_commit(github_client, current_ref)
 
 logger("Generate changelog for Axlib")
 axlib_cl = Changelog.new(
-  'axia/axlib', axlib_prev_sha, axlib_cur_sha,
+  'axiatech/axlib', axlib_prev_sha, axlib_cur_sha,
   token: token,
   prefix: true
 )
@@ -126,7 +126,7 @@ release_priority = Changelog.highest_priority_for_changes(client_changes)
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
 axia_runtime = get_runtime('axia', axia_path)
-axiatest_runtime = get_runtime('axiatest', axia_path)
+axctest_runtime = get_runtime('axctest', axia_path)
 alphanet_runtime = get_runtime('alphanet', axia_path)
 
 # These json files should have been downloaded as part of the build-runtimes
@@ -138,9 +138,9 @@ axia_json = JSON.parse(
   )
 )
 
-axiatest_json = JSON.parse(
+axctest_json = JSON.parse(
   File.read(
-    "#{ENV['GITHUB_WORKSPACE']}/axiatest-srtool-json/axiatest_srtool_output.json"
+    "#{ENV['GITHUB_WORKSPACE']}/axctest-srtool-json/axctest_srtool_output.json"
   )
 )
 

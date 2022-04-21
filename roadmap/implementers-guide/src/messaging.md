@@ -1,6 +1,6 @@
 # Messaging Overview
 
-The AXIA Host has a few mechanisms that are responsible for message passing. They can be generally divided
+The Axia Host has a few mechanisms that are responsible for message passing. They can be generally divided
 on two categories: Horizontal and Vertical. Horizontal Message Passing (HMP) refers to mechanisms
 that are responsible for exchanging messages between allychains. Vertical Message Passing (VMP) is
 used for communication between the relay chain and allychains.
@@ -30,7 +30,7 @@ from a allychain up to the relay chain. Upward messages are essentially byte blo
 by the relay-chain according to the XCM standard.
 
 The XCM standard is a common vocabulary of messages. The XCM standard doesn't require a particular interpretation of
-a message. However, the allychains host (e.g. AXIA) guarantees certain semantics for those.
+a message. However, the allychains host (e.g. Axia) guarantees certain semantics for those.
 
 Moreover, while most XCM messages are handled by the on-chain XCM interpreter, some of the messages are special
 cased. Specifically, those messages can be checked during the acceptance criteria and thus invalid
@@ -94,7 +94,7 @@ Since not all messages are required to be processed by the receiver's candidate,
 messages are supplied (i.e. preimages), rest are provided as hashes.
 
 Further details can be found at the official repository for the
-[Cross-Consensus Message Format (XCM)](https://github.com/axia/xcm-format/blob/master/README.md), as well as
+[Cross-Consensus Message Format (XCM)](https://github.com/axiatech/xcm-format/blob/master/README.md), as well as
 at the [W3F research website](https://research.web3.foundation/en/latest/axia/XCMP.html) and
 [this blogpost](https://medium.com/web3foundation/axias-messaging-scheme-b1ec560908b7).
 

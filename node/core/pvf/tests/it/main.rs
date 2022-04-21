@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_std::sync::Mutex;
 use axia_scale_codec::Encode as _;
@@ -135,7 +135,7 @@ async fn parallel_execution() {
 #[async_std::test]
 async fn execute_queue_doesnt_stall_if_workers_died() {
 	let host = TestHost::new_with_config(|cfg| {
-		assert_eq!(cfg.execute_workers_max_num, 5);
+		cfg.execute_workers_max_num = 5;
 	});
 
 	// Here we spawn 8 validation jobs for the `halt` PVF and share those between 5 workers. The

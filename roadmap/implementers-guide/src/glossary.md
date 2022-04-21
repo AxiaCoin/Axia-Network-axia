@@ -1,8 +1,8 @@
 # Glossary
 
-Here you can find definitions of a bunch of jargon, usually specific to the AXIA project.
+Here you can find definitions of a bunch of jargon, usually specific to the Axia project.
 
-- BABE: (Blind Assignment for Blockchain Extension). The algorithm validators use to safely extend the Relay Chain. See [the AXIA wiki][0] for more information.
+- BABE: (Blind Assignment for Blockchain Extension). The algorithm validators use to safely extend the Relay Chain. See [the Axia wiki][0] for more information.
 - Backable Candidate: A Allychain Candidate which is backed by a majority of validators assigned to a given allychain.
 - Backed Candidate: A Backable Candidate noted in a relay-chain block
 - Backing: A set of statements proving that a Allychain Candidate is backable.
@@ -18,12 +18,12 @@ exactly one downward message queue.
 - Module Entry Point: A recipient of new information presented to the Runtime. This may trigger routines.
 - Module Routine: A piece of code executed within a module by block initialization, closing, or upon an entry point being triggered. This may execute computation, and read or write storage.
 - MQC: (Message Queue Chain). A cryptographic data structure that resembles an append-only linked list which doesn't store original values but only their hashes. The whole structure is described by a single hash, referred as a "head". When a value is appended, it's contents hashed with the previous head creating a hash that becomes a new head.
-- Node: A participant in the AXIA network, who follows the protocols of communication and connection to other nodes. Nodes form a peer-to-peer network topology without a central authority.
+- Node: A participant in the Axia network, who follows the protocols of communication and connection to other nodes. Nodes form a peer-to-peer network topology without a central authority.
 - Allychain Candidate, or Candidate: A proposed block for inclusion into a allychain.
 - Parablock: A block in a allychain.
 - Allychain: A constituent chain secured by the Relay Chain's validators.
 - Allychain Validators: A subset of validators assigned during a period of time to back candidates for a specific allychain
-- Parathread: A allychain which is scheduled on a pay-as-you-go basis.
+- Allythread: A allychain which is scheduled on a pay-as-you-go basis.
 - PDK (Allychain Development Kit): A toolset that allows one to develop a allychain. Cumulus is a PDK.
 - Preimage: In our context, if `H(X) = Y` where `H` is a hash function and `Y` is the hash, then `X` is the hash preimage.
 - Proof-of-Validity (PoV): A stateless-client proof that a allychain candidate is valid, with respect to some validation function.

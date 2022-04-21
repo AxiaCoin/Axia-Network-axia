@@ -1,82 +1,90 @@
-// Copyright 2019-2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA Bridges Common.
+// Copyright 2019-2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia Bridges Common.
 
-// AXIA Bridges Common is free software: you can redistribute it and/or modify
+// Axia Bridges Common is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA Bridges Common is distributed in the hope that it will be useful,
+// Axia Bridges Common is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Types used to connect to the BetaNet-Axlib chain.
+//! Types used to connect to the Betanet-Axlib chain.
 
 use codec::Encode;
-use relay_axlib_client::{Chain, ChainBase, ChainWithBalances, TransactionSignScheme};
+use relay_axlib_client::{
+	Chain, ChainBase, ChainWithBalances, TransactionEraOf, TransactionSignScheme,
+	UnsignedTransaction,
+};
 use sp_core::{storage::StorageKey, Pair};
 use sp_runtime::{generic::SignedPayload, traits::IdentifyAccount};
 use std::time::Duration;
 
 pub mod runtime;
 
-/// BetaNet header id.
+/// Betanet header id.
 pub type HeaderId = relay_utils::HeaderId<bp_betanet::Hash, bp_betanet::BlockNumber>;
 
-/// BetaNet header type used in headers sync.
+/// Betanet header type used in headers sync.
 pub type SyncHeader = relay_axlib_client::SyncHeader<bp_betanet::Header>;
 
-/// BetaNet chain definition
+/// Betanet chain definition
 #[derive(Debug, Clone, Copy)]
-pub struct BetaNet;
+pub struct Betanet;
 
-impl ChainBase for BetaNet {
+impl ChainBase for Betanet {
 	type BlockNumber = bp_betanet::BlockNumber;
 	type Hash = bp_betanet::Hash;
 	type Hasher = bp_betanet::Hashing;
 	type Header = bp_betanet::Header;
-}
-
-impl Chain for BetaNet {
-	const NAME: &'static str = "BetaNet";
-	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(6);
 
 	type AccountId = bp_betanet::AccountId;
-	type Index = bp_betanet::Index;
-	type SignedBlock = bp_betanet::SignedBlock;
-	type Call = crate::runtime::Call;
 	type Balance = bp_betanet::Balance;
+	type Index = bp_betanet::Nonce;
+	type Signature = bp_betanet::Signature;
 }
 
-impl ChainWithBalances for BetaNet {
+impl Chain for Betanet {
+	const NAME: &'static str = "Betanet";
+	const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_secs(6);
+	const STORAGE_PROOF_OVERHEAD: u32 = bp_betanet::EXTRA_STORAGE_PROOF_SIZE;
+	const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = bp_betanet::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE;
+
+	type SignedBlock = bp_betanet::SignedBlock;
+	type Call = crate::runtime::Call;
+	type WeightToFee = bp_betanet::WeightToFee;
+}
+
+impl ChainWithBalances for Betanet {
 	fn account_info_storage_key(account_id: &Self::AccountId) -> StorageKey {
 		StorageKey(bp_betanet::account_info_storage_key(account_id))
 	}
 }
 
-impl TransactionSignScheme for BetaNet {
-	type Chain = BetaNet;
+impl TransactionSignScheme for Betanet {
+	type Chain = Betanet;
 	type AccountKeyPair = sp_core::sr25519::Pair;
 	type SignedTransaction = crate::runtime::UncheckedExtrinsic;
 
 	fn sign_transaction(
 		genesis_hash: <Self::Chain as ChainBase>::Hash,
 		signer: &Self::AccountKeyPair,
-		signer_nonce: <Self::Chain as Chain>::Index,
-		call: <Self::Chain as Chain>::Call,
+		era: TransactionEraOf<Self::Chain>,
+		unsigned: UnsignedTransaction<Self::Chain>,
 	) -> Self::SignedTransaction {
 		let raw_payload = SignedPayload::new(
-			call,
+			unsigned.call,
 			bp_betanet::SignedExtensions::new(
 				bp_betanet::VERSION,
-				sp_runtime::generic::Era::Immortal,
+				era,
 				genesis_hash,
-				signer_nonce,
-				0,
+				unsigned.nonce,
+				unsigned.tip,
 			),
 		)
 		.expect("SignedExtension never fails.");
@@ -92,7 +100,25 @@ impl TransactionSignScheme for BetaNet {
 			extra,
 		)
 	}
+
+	fn is_signed(tx: &Self::SignedTransaction) -> bool {
+		tx.signature.is_some()
+	}
+
+	fn is_signed_by(signer: &Self::AccountKeyPair, tx: &Self::SignedTransaction) -> bool {
+		tx.signature
+			.as_ref()
+			.map(|(address, _, _)| {
+				*address == bp_betanet::AccountId::from(*signer.public().as_array_ref()).into()
+			})
+			.unwrap_or(false)
+	}
+
+	fn parse_transaction(tx: Self::SignedTransaction) -> Option<UnsignedTransaction<Self::Chain>> {
+		let extra = &tx.signature.as_ref()?.2;
+		Some(UnsignedTransaction { call: tx.function, nonce: extra.nonce(), tip: extra.tip() })
+	}
 }
 
-/// BetaNet signing params.
+/// Betanet signing params.
 pub type SigningParams = sp_core::sr25519::Pair;

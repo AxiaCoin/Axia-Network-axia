@@ -1,10 +1,10 @@
 # Security Policy
 
-AXIA Technologies is committed to resolving security vulnerabilities in our software quickly and carefully. We take the necessary steps to minimize risk, provide timely information, and deliver vulnerability fixes and mitigations required to address security issues.
+Axia Technologies is committed to resolving security vulnerabilities in our software quickly and carefully. We take the necessary steps to minimize risk, provide timely information, and deliver vulnerability fixes and mitigations required to address security issues.
 
 ## Reporting a Vulnerability
 
-Security vulnerabilities in AXIA software should be reported by email to security@axiacoin.network. If you think your report might be eligible for the AXIA Bug Bounty Program, your email should be sent to bugbounty@axiacoin.network. 
+Security vulnerabilities in Axia software should be reported by email to security@axia.io. If you think your report might be eligible for the Axia Bug Bounty Program, your email should be sent to bugbounty@axia.io. 
 
 Your report should include the following:
 
@@ -28,7 +28,7 @@ Thank you for taking the time to responsibly disclose any vulnerabilities you fi
 Responsible investigation and reporting includes, but isn't limited to, the following:
 
 - Don't violate the privacy of other users, destroy data, etc.
-- Don’t defraud or harm AXIA Technologies Ltd or its users during your research; you should make a good faith effort to not interrupt or degrade our services.
+- Don’t defraud or harm Axia Technologies Ltd or its users during your research; you should make a good faith effort to not interrupt or degrade our services.
 - Don't target our physical security measures, or attempt to use social engineering, spam, distributed denial of service (DDOS) attacks, etc.
 - Initially report the bug only to us and not to anyone else.
 - Give us a reasonable amount of time to fix the bug before disclosing it to anyone else, and give us adequate written warning before disclosing it to anyone else.
@@ -36,7 +36,11 @@ Responsible investigation and reporting includes, but isn't limited to, the foll
 
 ## Bug Bounty Program
 
-Our Bug Bounty Program allows us to recognise and reward members of the AXIA community for helping us find and address significant bugs, in accordance with the terms of the AXIA Bug Bounty Program. A detailed description on eligibility, rewards, legal information and terms & conditions for contributors can be found on [our website](https://axia.io/bug-bounty.html). 
+Our Bug Bounty Program allows us to recognise and reward members of the Axia community for helping us find and address significant bugs, in accordance with the terms of the Axia Bug Bounty Program. A detailed description on eligibility, rewards, legal information and terms & conditions for contributors can be found on [our website](https://axiatech.io/bug-bounty.html). 
+
+
+
+
 
 
 ## Plaintext PGP Key

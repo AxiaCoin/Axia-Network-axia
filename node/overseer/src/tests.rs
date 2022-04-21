@@ -1,22 +1,23 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
+use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
 use axia_node_network_protocol::{PeerId, UnifiedReputationChange};
 use axia_node_primitives::{
 	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
@@ -110,7 +111,7 @@ where
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
-							Default::default(),
+							dummy_candidate_descriptor(dummy_hash()),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
 							tx,
@@ -279,9 +280,9 @@ fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64
 			.get_value() as u64
 	};
 
-	let activated = extract("allychain_activated_heads_total");
-	let deactivated = extract("allychain_deactivated_heads_total");
-	let relayed = extract("allychain_messages_relayed_total");
+	let activated = extract("axia_allychain_activated_heads_total");
+	let deactivated = extract("axia_allychain_deactivated_heads_total");
+	let relayed = extract("axia_allychain_messages_relayed_total");
 	let mut result = HashMap::new();
 	result.insert("activated", activated);
 	result.insert("deactivated", deactivated);
@@ -793,9 +794,9 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
 	CandidateValidationMessage::ValidateFromChainState(
-		Default::default(),
+		dummy_candidate_descriptor(dummy_hash()),
 		pov,
-		Default::default(),
+		Duration::default(),
 		sender,
 	)
 }
@@ -814,7 +815,7 @@ fn test_collator_generation_msg() -> CollationGenerationMessage {
 	CollationGenerationMessage::Initialize(CollationGenerationConfig {
 		key: CollatorPair::generate().0,
 		collator: Box::new(|_, _| TestCollator.boxed()),
-		para_id: Default::default(),
+		ally_id: Default::default(),
 	})
 }
 struct TestCollator;
@@ -844,7 +845,7 @@ fn test_statement_distribution_msg() -> StatementDistributionMessage {
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 	let (sender, _) = oneshot::channel();
 	AvailabilityRecoveryMessage::RecoverAvailableData(
-		Default::default(),
+		dummy_candidate_receipt(dummy_hash()),
 		Default::default(),
 		None,
 		sender,
@@ -888,29 +889,18 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 	DisputeCoordinatorMessage::RecentDisputes(sender)
 }
 
-fn test_dispute_participation_msg() -> DisputeParticipationMessage {
-	let (sender, _) = oneshot::channel();
-	DisputeParticipationMessage::Participate {
-		candidate_hash: Default::default(),
-		candidate_receipt: Default::default(),
-		session: 0,
-		n_validators: 0,
-		report_availability: sender,
-	}
-}
-
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
-		candidate_receipt: Default::default(),
+		candidate_receipt: dummy_candidate_receipt(dummy_hash()),
 		session_index: 0,
 		invalid_vote: InvalidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 			kind: InvalidDisputeStatementKind::Explicit,
 		},
 		valid_vote: ValidDisputeVote {
 			validator_index: ValidatorIndex(0),
-			signature: Default::default(),
+			signature: sp_core::crypto::UncheckedFrom::unchecked_from([2u8; 64]),
 			kind: ValidDisputeStatementKind::Explicit,
 		},
 	};
@@ -931,8 +921,8 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
 	const NUM_SUBSYSTEMS: usize = 21;
-	// -3 for BitfieldSigning, GossipSupport and AvailabilityDistribution
-	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 3;
+	// -4 for BitfieldSigning, GossipSupport, AvailabilityDistribution and PvfCheckerSubsystem.
+	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 4;
 
 	let spawner = sp_core::testing::TaskExecutor::new();
 	executor::block_on(async move {
@@ -1010,14 +1000,12 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			.send_msg_anon(AllMessages::DisputeCoordinator(test_dispute_coordinator_msg()))
 			.await;
 		handle
-			.send_msg_anon(AllMessages::DisputeParticipation(test_dispute_participation_msg()))
-			.await;
-		handle
 			.send_msg_anon(AllMessages::DisputeDistribution(test_dispute_distribution_msg()))
 			.await;
 		handle
 			.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg()))
 			.await;
+		// handle.send_msg_anon(AllMessages::PvfChecker(test_pvf_checker_msg())).await;
 
 		// Wait until all subsystems have received. Otherwise the messages might race against
 		// the conclude signal.
@@ -1069,9 +1057,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (approval_voting_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (gossip_support_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (dispute_coordinator_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-	let (dispute_participation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (dispute_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (chain_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (pvf_checker_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 
 	let (candidate_validation_unbounded_tx, _) = metered::unbounded();
 	let (candidate_backing_unbounded_tx, _) = metered::unbounded();
@@ -1091,9 +1079,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (approval_voting_unbounded_tx, _) = metered::unbounded();
 	let (gossip_support_unbounded_tx, _) = metered::unbounded();
 	let (dispute_coordinator_unbounded_tx, _) = metered::unbounded();
-	let (dispute_participation_unbounded_tx, _) = metered::unbounded();
 	let (dispute_distribution_unbounded_tx, _) = metered::unbounded();
 	let (chain_selection_unbounded_tx, _) = metered::unbounded();
+	let (pvf_checker_unbounded_tx, _) = metered::unbounded();
 
 	let channels_out = ChannelsOut {
 		candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -1114,9 +1102,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		approval_voting: approval_voting_bounded_tx.clone(),
 		gossip_support: gossip_support_bounded_tx.clone(),
 		dispute_coordinator: dispute_coordinator_bounded_tx.clone(),
-		dispute_participation: dispute_participation_bounded_tx.clone(),
 		dispute_distribution: dispute_distribution_bounded_tx.clone(),
 		chain_selection: chain_selection_bounded_tx.clone(),
+		pvf_checker: pvf_checker_bounded_tx.clone(),
 
 		candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 		candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -1136,9 +1124,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		approval_voting_unbounded: approval_voting_unbounded_tx.clone(),
 		gossip_support_unbounded: gossip_support_unbounded_tx.clone(),
 		dispute_coordinator_unbounded: dispute_coordinator_unbounded_tx.clone(),
-		dispute_participation_unbounded: dispute_participation_unbounded_tx.clone(),
 		dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
 		chain_selection_unbounded: chain_selection_unbounded_tx.clone(),
+		pvf_checker_unbounded: pvf_checker_unbounded_tx.clone(),
 	};
 
 	let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
@@ -1151,6 +1139,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		stream::select(bounded_rx, unbounded_rx),
 		channels_out,
 		to_overseer_tx,
+		"test",
 	);
 
 	assert_eq!(ctx.signals_received.load(), 0);

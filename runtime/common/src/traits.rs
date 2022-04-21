@@ -1,26 +1,26 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Traits used across pallets for AXIA.
+//! Traits used across pallets for Axia.
 
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 };
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
+use primitives::v1::{HeadData, Id as AllyId, ValidationCode};
 use sp_std::vec::*;
 
 /// Allychain registration API.
@@ -29,49 +29,49 @@ pub trait Registrar {
 	type AccountId;
 
 	/// Report the manager (permissioned owner) of a allychain, if there is one.
-	fn manager_of(id: ParaId) -> Option<Self::AccountId>;
+	fn manager_of(id: AllyId) -> Option<Self::AccountId>;
 
-	/// All allychains. Ordered ascending by `ParaId`. Parathreads are not included.
-	fn allychains() -> Vec<ParaId>;
+	/// All allychains. Ordered ascending by `AllyId`. Allythreads are not included.
+	fn allychains() -> Vec<AllyId>;
 
-	/// Return if a `ParaId` is a Allychain.
-	fn is_allychain(id: ParaId) -> bool {
+	/// Return if a `AllyId` is a Allychain.
+	fn is_allychain(id: AllyId) -> bool {
 		Self::allychains().binary_search(&id).is_ok()
 	}
 
-	/// Return if a `ParaId` is a Parathread.
-	fn is_parathread(id: ParaId) -> bool;
+	/// Return if a `AllyId` is a Allythread.
+	fn is_allythread(id: AllyId) -> bool;
 
-	/// Return if a `ParaId` is registered in the system.
-	fn is_registered(id: ParaId) -> bool {
-		Self::is_parathread(id) || Self::is_allychain(id)
+	/// Return if a `AllyId` is registered in the system.
+	fn is_registered(id: AllyId) -> bool {
+		Self::is_allythread(id) || Self::is_allychain(id)
 	}
 
-	/// Apply a lock to the para registration so that it cannot be modified by
-	/// the manager directly. Instead the para must use its sovereign governance
+	/// Apply a lock to the ally registration so that it cannot be modified by
+	/// the manager directly. Instead the ally must use its sovereign governance
 	/// or the governance of the relay chain.
-	fn apply_lock(id: ParaId);
+	fn apply_lock(id: AllyId);
 
-	/// Remove any lock on the para registration.
-	fn remove_lock(id: ParaId);
+	/// Remove any lock on the ally registration.
+	fn remove_lock(id: AllyId);
 
-	/// Register a Para ID under control of `who`. Registration may be be
+	/// Register a Ally ID under control of `who`. Registration may be be
 	/// delayed by session rotation.
 	fn register(
 		who: Self::AccountId,
-		id: ParaId,
+		id: AllyId,
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
 	) -> DispatchResult;
 
-	/// Deregister a Para ID, free any data, and return any deposits.
-	fn deregister(id: ParaId) -> DispatchResult;
+	/// Deregister a Ally ID, free any data, and return any deposits.
+	fn deregister(id: AllyId) -> DispatchResult;
 
-	/// Elevate a para to allychain status.
-	fn make_allychain(id: ParaId) -> DispatchResult;
+	/// Elevate a ally to allychain status.
+	fn make_allychain(id: AllyId) -> DispatchResult;
 
-	/// Lower a para back to normal from allychain status.
-	fn make_parathread(id: ParaId) -> DispatchResult;
+	/// Lower a ally back to normal from allychain status.
+	fn make_allythread(id: AllyId) -> DispatchResult;
 
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn worst_head_data() -> HeadData;
@@ -80,7 +80,7 @@ pub trait Registrar {
 	fn worst_validation_code() -> ValidationCode;
 
 	/// Execute any pending state transitions for paras.
-	/// For example onboarding to parathread, or parathread to allychain.
+	/// For example onboarding to allythread, or allythread to allychain.
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions();
 }
@@ -121,7 +121,7 @@ pub trait Leaser<BlockNumber> {
 	///
 	/// Returns `Err` in the case of an error, and in which case nothing is changed.
 	fn lease_out(
-		para: ParaId,
+		para: AllyId,
 		leaser: &Self::AccountId,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 		period_begin: Self::LeasePeriod,
@@ -131,7 +131,7 @@ pub trait Leaser<BlockNumber> {
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
 	/// go down outside a lease period.
 	fn deposit_held(
-		para: ParaId,
+		para: AllyId,
 		leaser: &Self::AccountId,
 	) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
 
@@ -149,7 +149,7 @@ pub trait Leaser<BlockNumber> {
 	/// Returns true if the allychain already has a lease in any of lease periods in the inclusive
 	/// range `[first_period, last_period]`, intersected with the unbounded range [`current_lease_period`..] .
 	fn already_leased(
-		para_id: ParaId,
+		ally_id: AllyId,
 		first_period: Self::LeasePeriod,
 		last_period: Self::LeasePeriod,
 	) -> bool;
@@ -219,7 +219,7 @@ pub trait Auctioneer<BlockNumber> {
 	/// Place a bid in the current auction.
 	///
 	/// - `bidder`: The account that will be funding this bid.
-	/// - `para`: The para to bid for.
+	/// - `para`: The ally to bid for.
 	/// - `first_slot`: The first lease period index of the range to be bid on.
 	/// - `last_slot`: The last lease period index of the range to be bid on (inclusive).
 	/// - `amount`: The total amount to be the bid for deposit over the range.
@@ -229,7 +229,7 @@ pub trait Auctioneer<BlockNumber> {
 	/// or freed once the bid is rejected or lease has ended.
 	fn place_bid(
 		bidder: Self::AccountId,
-		para: ParaId,
+		para: AllyId,
 		first_slot: Self::LeasePeriod,
 		last_slot: Self::LeasePeriod,
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
@@ -246,15 +246,15 @@ pub trait Auctioneer<BlockNumber> {
 	/// is placed.
 	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
-	/// Check if the para and user combination has won an auction in the past.
-	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
+	/// Check if the ally and user combination has won an auction in the past.
+	fn has_won_an_auction(para: AllyId, bidder: &Self::AccountId) -> bool;
 }
 
-/// Runtime hook for when we swap a allychain and parathread.
+/// Runtime hook for when we swap a allychain and allythread.
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 pub trait OnSwap {
 	/// Updates any needed state/references to enact a logical swap of two allychains. Identity,
 	/// code and `head_data` remain equivalent for all allychains/threads, however other properties
 	/// such as leases, deposits held and thread/chain nature are swapped.
-	fn on_swap(one: ParaId, other: ParaId);
+	fn on_swap(one: AllyId, other: AllyId);
 }

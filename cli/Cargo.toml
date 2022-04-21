@@ -1,8 +1,8 @@
 [package]
 name = "axia-cli"
-version = "0.9.12"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
-description = "AXIA Relay-chain Client Node"
+version = "0.9.17"
+authors = ["Axia Technologies <admin@axia.io>"]
+description = "Axia Relay-chain Client Node"
 edition = "2018"
 
 [package.metadata.wasm-pack.profile.release]
@@ -14,51 +14,57 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+clap = { version = "3.0", features = ["derive"], optional = true }
 log = "0.4.13"
 thiserror = "1.0.30"
-structopt = { version = "0.3.23", optional = true }
-futures = "0.3.17"
+futures = "0.3.21"
 
 service = { package = "axia-service", path = "../node/service", default-features = false, optional = true }
 axia-node-core-pvf = { path = "../node/core/pvf", optional = true }
+axia-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-frame-benchmarking-cli = { git = "https://github.com/axia-tech/axia-core", optional = true , branch = "dev" }
-try-runtime-cli = { git = "https://github.com/axia-tech/axia-core", optional = true , branch = "dev" }
-sc-cli = { git = "https://github.com/axia-tech/axia-core", optional = true , branch = "dev" }
-sc-service = { git = "https://github.com/axia-tech/axia-core", optional = true , branch = "dev" }
+sp-core = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+frame-benchmarking-cli = { git = "https://github.com/axia-tech/axlib", optional = true , branch = "axlib" }
+try-runtime-cli = { git = "https://github.com/axia-tech/axlib", optional = true , branch = "axlib" }
+sc-cli = { git = "https://github.com/axia-tech/axlib", optional = true , branch = "axlib" }
+sc-service = { git = "https://github.com/axia-tech/axlib", optional = true , branch = "axlib" }
+axia-node-metrics = { path = "../node/metrics" }
+sc-tracing = { git = "https://github.com/axia-tech/axlib", optional = true , branch = "axlib" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
-# see https://github.com/axia-tech/axia-core/pull/6745
-sp-trie = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+# see https://github.com/axiatech/axlib/pull/6745
+sp-trie = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 
 [build-dependencies]
-axlib-build-script-utils = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+axlib-build-script-utils = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "axia-native" ]
-wasmtime = [ "sc-cli/wasmtime" ]
-db = [ "service/db" ]
+default = ["wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "axia-native"]
+wasmtime = ["sc-cli/wasmtime"]
+db = ["service/db"]
 cli = [
-	"structopt",
+	"clap",
 	"sc-cli",
 	"sc-service",
+	"sc-tracing",
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"axia-node-core-pvf",
+	"axia-performance-test",
 ]
-runtime-benchmarks = [ "service/runtime-benchmarks" ]
-trie-memory-tracker = [ "sp-trie/memory-tracker" ]
-full-node = [ "service/full-node" ]
-try-runtime = [ "service/try-runtime" ]
+runtime-benchmarks = ["service/runtime-benchmarks", "axia-node-metrics/runtime-benchmarks"]
+trie-memory-tracker = ["sp-trie/memory-tracker"]
+full-node = ["service/full-node"]
+try-runtime = ["service/try-runtime"]
+fast-runtime = ["service/fast-runtime"]
 
-# Configure the native runtimes to use. AXIA is enabled by default.
+# Configure the native runtimes to use. Axia is enabled by default.
 #
 # Validators require the native runtime currently
-axia-native = [ "service/axia-native" ]
-axiatest-native = [ "service/axiatest-native" ]
-alphanet-native = [ "service/alphanet-native" ]
-betanet-native = [ "service/betanet-native" ]
+axia-native = ["service/axia-native"]
+axctest-native = ["service/axctest-native"]
+alphanet-native = ["service/alphanet-native"]
+betanet-native = ["service/betanet-native"]
 
-malus = [ "full-node", "service/malus" ]
-disputes = [ "service/disputes" ]
+malus = ["full-node", "service/malus"]
+runtime-metrics = ["service/runtime-metrics", "axia-node-metrics/runtime-metrics"]

@@ -1,4 +1,4 @@
-// Copyright (C) 2020 AXIA Technologies (UK) Ltd.
+// Copyright (C) 2020 Axia Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,4 +17,6 @@
 
 pub mod runtime_allychains_configuration;
 pub mod runtime_allychains_disputes;
+pub mod runtime_allychains_hrmp;
 pub mod runtime_allychains_paras;
+pub mod runtime_allychains_paras_inherent;

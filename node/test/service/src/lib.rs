@@ -1,20 +1,20 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! AXIA test service only.
+//! Axia test service only.
 
 #![warn(missing_docs)]
 
@@ -25,10 +25,12 @@ use futures::future::Future;
 use axia_node_primitives::{CollationGenerationConfig, CollatorFn};
 use axia_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use axia_overseer::Handle;
-use axia_primitives::v1::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
+use axia_primitives::v1::{Balance, CollatorPair, HeadData, Id as AllyId, ValidationCode};
 use axia_runtime_common::BlockHashCount;
 use axia_runtime_allychains::paras::ParaGenesisArgs;
-use axia_service::{ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull};
+use axia_service::{
+	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
+};
 use axia_test_runtime::{
 	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
 	VERSION,
@@ -39,7 +41,7 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
-use service::{
+use sc_service::{
 	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
 };
@@ -48,16 +50,20 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+	net::{Ipv4Addr, SocketAddr},
+	path::PathBuf,
+	sync::Arc,
+};
 use axlib_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
 
-/// Declare an instance of the native executor named `AXIATESTExecutorDispatch`. Include the wasm binary as the
+/// Declare an instance of the native executor named `AxiaTestExecutorDispatch`. Include the wasm binary as the
 /// equivalent wasm code.
-pub struct AXIATESTExecutorDispatch;
+pub struct AxiaTestExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for AXIATESTExecutorDispatch {
+impl sc_executor::NativeExecutionDispatch for AxiaTestExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -70,7 +76,7 @@ impl sc_executor::NativeExecutionDispatch for AXIATESTExecutorDispatch {
 }
 
 /// The client type being used by the test service.
-pub type Client = FullClient<axia_test_runtime::RuntimeApi, AXIATESTExecutorDispatch>;
+pub type Client = FullClient<axia_test_runtime::RuntimeApi, AxiaTestExecutorDispatch>;
 
 pub use axia_service::FullBackend;
 
@@ -81,7 +87,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 	worker_program_path: Option<PathBuf>,
 ) -> Result<NewFull<Arc<Client>>, Error> {
-	axia_service::new_full::<axia_test_runtime::RuntimeApi, AXIATESTExecutorDispatch, _>(
+	axia_service::new_full::<axia_test_runtime::RuntimeApi, AxiaTestExecutorDispatch, _>(
 		config,
 		is_collator,
 		None,
@@ -89,6 +95,7 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		false,
 		axia_service::RealOverseerGen,
 	)
 }
@@ -102,7 +109,15 @@ impl ClientHandle for TestClient {
 	}
 }
 
-/// Create a AXIA `Configuration`.
+/// Returns a prometheus config usable for testing.
+pub fn test_prometheus_config(port: u16) -> PrometheusConfig {
+	PrometheusConfig::new_with_default_registry(
+		SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
+		"test-chain".to_string(),
+	)
+}
+
+/// Create a Axia `Configuration`.
 ///
 /// By default an in-memory socket will be used, therefore you need to provide boot
 /// nodes if you want the future node to be connected to other nodes.
@@ -160,7 +175,7 @@ pub fn node_config(
 		keep_blocks: KeepBlocks::All,
 		transaction_storage: TransactionStorageMode::BlockBody,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Interpreted,
+		wasm_method: WasmExecutionMethod::Compiled,
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
@@ -188,37 +203,28 @@ pub fn node_config(
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
+		runtime_cache_size: 2,
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
 	}
 }
 
-/// Run a test validator node that uses the test runtime.
-///
-/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
-/// want it to be connected to other nodes.
-///
-/// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustments to the runtime genesis storage.
+/// Run a test validator node that uses the test runtime and specified `config`.
 pub fn run_validator_node(
-	tokio_handle: tokio::runtime::Handle,
-	key: Sr25519Keyring,
-	storage_update_func: impl Fn(),
-	boot_nodes: Vec<MultiaddrWithPeerId>,
+	config: Configuration,
 	worker_program_path: Option<PathBuf>,
-) -> AXIATESTNode {
-	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, true);
+) -> AxiaTestNode {
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path)
-			.expect("could not create AXIA test service");
+			.expect("could not create Axia test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
-	AXIATESTNode { task_manager, client, overseer_handle, addr, rpc_handlers }
+	AxiaTestNode { task_manager, client, overseer_handle, addr, rpc_handlers }
 }
 
 /// Run a test collator node that uses the test runtime.
@@ -232,29 +238,29 @@ pub fn run_validator_node(
 /// # Note
 ///
 /// The collator functionality still needs to be registered at the node! This can be done using
-/// [`AXIATESTNode::register_collator`].
+/// [`AxiaTestNode::register_collator`].
 pub fn run_collator_node(
 	tokio_handle: tokio::runtime::Handle,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 	collator_pair: CollatorPair,
-) -> AXIATESTNode {
+) -> AxiaTestNode {
 	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::Yes(collator_pair), None)
-			.expect("could not create AXIA test service");
+			.expect("could not create Axia test service");
 
 	let overseer_handle = overseer_handle.expect("test node must have an overseer handle");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
-	AXIATESTNode { task_manager, client, overseer_handle, addr, rpc_handlers }
+	AxiaTestNode { task_manager, client, overseer_handle, addr, rpc_handlers }
 }
 
-/// A AXIA test node instance used for testing.
-pub struct AXIATESTNode {
+/// A Axia test node instance used for testing.
+pub struct AxiaTestNode {
 	/// `TaskManager`'s instance.
 	pub task_manager: TaskManager,
 	/// Client's instance.
@@ -267,7 +273,7 @@ pub struct AXIATESTNode {
 	pub rpc_handlers: RpcHandlers,
 }
 
-impl AXIATESTNode {
+impl AxiaTestNode {
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
@@ -282,7 +288,7 @@ impl AXIATESTNode {
 	/// Register a allychain at this relay chain.
 	pub async fn register_allychain(
 		&self,
-		id: ParaId,
+		id: AllyId,
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
@@ -310,17 +316,17 @@ impl AXIATESTNode {
 	pub async fn register_collator(
 		&mut self,
 		collator_key: CollatorPair,
-		para_id: ParaId,
+		ally_id: AllyId,
 		collator: CollatorFn,
 	) {
-		let config = CollationGenerationConfig { key: collator_key, collator, para_id };
+		let config = CollationGenerationConfig { key: collator_key, collator, ally_id };
 
 		self.overseer_handle
 			.send_msg(CollationGenerationMessage::Initialize(config), "Collator")
 			.await;
 
 		self.overseer_handle
-			.send_msg(CollatorProtocolMessage::CollateOn(para_id), "Collator")
+			.send_msg(CollatorProtocolMessage::CollateOn(ally_id), "Collator")
 			.await;
 	}
 }
@@ -340,6 +346,7 @@ pub fn construct_extrinsic(
 		BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 	let tip = 0;
 	let extra: SignedExtra = (
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -352,6 +359,7 @@ pub fn construct_extrinsic(
 		function.clone(),
 		extra.clone(),
 		(
+			(),
 			VERSION.spec_version,
 			VERSION.transaction_version,
 			genesis_block,

@@ -6,14 +6,14 @@ ARG VCS_REF
 ARG BUILD_DATE
 ARG IMAGE_NAME
 
-LABEL io.axia.image.authors="devops-team@axiacoin.network" \
-	io.axia.image.vendor="AXIA Technologies" \
+LABEL io.axia.image.authors="devops-team@axia.io" \
+	io.axia.image.vendor="Axia Technologies" \
 	io.axia.image.title="${IMAGE_NAME}" \
 	io.axia.image.description="Injected adder-collator Docker image" \
-	io.axia.image.source="https://github.com/axia/axia/blob/${VCS_REF}/scripts/docker/collator_injected.Dockerfile" \
+	io.axia.image.source="https://github.com/axiatech/axia/blob/${VCS_REF}/scripts/docker/collator_injected.Dockerfile" \
 	io.axia.image.revision="${VCS_REF}" \
 	io.axia.image.created="${BUILD_DATE}" \
-	io.axia.image.documentation="https://github.com/axia/axia/"
+	io.axia.image.documentation="https://github.com/axiatech/axia/"
 
 # show backtraces
 ENV RUST_BACKTRACE 1

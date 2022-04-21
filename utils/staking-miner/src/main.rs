@@ -1,20 +1,20 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # AXIA Staking Miner.
+//! # Axia Staking Miner.
 //!
 //! Simple bot capable of monitoring a axia (and cousins) chain and submitting solutions to the
 //! `pallet-election-provider-multi-phase`. See `--help` for more details.
@@ -38,21 +38,21 @@ mod signer;
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
+use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
+use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::traits::Block as BlockT;
-use structopt::StructOpt;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 pub(crate) enum AnyRuntime {
-	AXIA,
-	AXIATEST,
-	AlphaNet,
+	Axia,
+	AxiaTest,
+	Alphanet,
 }
 
-pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::AXIA;
+pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Axia;
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
@@ -115,6 +115,7 @@ fn signed_ext_builder_axia(
 ) -> axia_runtime_exports::SignedExtra {
 	use axia_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -126,13 +127,14 @@ fn signed_ext_builder_axia(
 	)
 }
 
-fn signed_ext_builder_axiatest(
+fn signed_ext_builder_axctest(
 	nonce: Index,
 	tip: Balance,
 	era: sp_runtime::generic::Era,
-) -> axiatest_runtime_exports::SignedExtra {
-	use axiatest_runtime_exports::Runtime;
+) -> axctest_runtime_exports::SignedExtra {
+	use axctest_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -150,6 +152,7 @@ fn signed_ext_builder_alphanet(
 ) -> alphanet_runtime_exports::SignedExtra {
 	use alphanet_runtime_exports::Runtime;
 	(
+		frame_system::CheckNonZeroSender::<Runtime>::new(),
 		frame_system::CheckSpecVersion::<Runtime>::new(),
 		frame_system::CheckTxVersion::<Runtime>::new(),
 		frame_system::CheckGenesis::<Runtime>::new(),
@@ -161,7 +164,7 @@ fn signed_ext_builder_alphanet(
 }
 
 construct_runtime_prelude!(axia);
-construct_runtime_prelude!(axiatest);
+construct_runtime_prelude!(axctest);
 construct_runtime_prelude!(alphanet);
 
 // NOTE: this is no longer used extensively, most of the per-runtime stuff us delegated to
@@ -175,17 +178,17 @@ macro_rules! any_runtime {
 	($($code:tt)*) => {
 		unsafe {
 			match $crate::RUNTIME {
-				$crate::AnyRuntime::AXIA => {
+				$crate::AnyRuntime::Axia => {
 					#[allow(unused)]
 					use $crate::axia_runtime_exports::*;
 					$($code)*
 				},
-				$crate::AnyRuntime::AXIATEST => {
+				$crate::AnyRuntime::AxiaTest => {
 					#[allow(unused)]
-					use $crate::axiatest_runtime_exports::*;
+					use $crate::axctest_runtime_exports::*;
 					$($code)*
 				},
-				$crate::AnyRuntime::AlphaNet => {
+				$crate::AnyRuntime::Alphanet => {
 					#[allow(unused)]
 					use $crate::alphanet_runtime_exports::*;
 					$($code)*
@@ -202,17 +205,17 @@ macro_rules! any_runtime_unit {
 	($($code:tt)*) => {
 		unsafe {
 			match $crate::RUNTIME {
-				$crate::AnyRuntime::AXIA => {
+				$crate::AnyRuntime::Axia => {
 					#[allow(unused)]
 					use $crate::axia_runtime_exports::*;
 					let _ = $($code)*;
 				},
-				$crate::AnyRuntime::AXIATEST => {
+				$crate::AnyRuntime::AxiaTest => {
 					#[allow(unused)]
-					use $crate::axiatest_runtime_exports::*;
+					use $crate::axctest_runtime_exports::*;
 					let _ = $($code)*;
 				},
-				$crate::AnyRuntime::AlphaNet => {
+				$crate::AnyRuntime::Alphanet => {
 					#[allow(unused)]
 					use $crate::alphanet_runtime_exports::*;
 					let _ = $($code)*;
@@ -225,7 +228,7 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee_ws_client::types::Error),
+	JsonRpsee(#[from] jsonrpsee::core::Error),
 	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
@@ -269,7 +272,7 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 enum Command {
 	/// Monitor for the phase being signed, then compute.
 	Monitor(MonitorConfig),
@@ -279,14 +282,14 @@ enum Command {
 	EmergencySolution(EmergencySolutionConfig),
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 enum Solvers {
 	SeqPhragmen {
-		#[structopt(long, default_value = "10")]
+		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
 	PhragMMS {
-		#[structopt(long, default_value = "10")]
+		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
 }
@@ -298,73 +301,73 @@ frame_support::parameter_types! {
 	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct MonitorConfig {
 	/// They type of event to listen to.
 	///
 	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
 	/// slower. It is recommended to use finalized, if the duration of the signed phase is longer
 	/// than the the finality delay.
-	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
+	#[clap(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
 
 	/// The solver algorithm to use.
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct EmergencySolutionConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[structopt(long)]
+	#[clap(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 
 	/// The number of top backed winners to take. All are taken, if not provided.
 	take: Option<usize>,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct DryRunConfig {
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[structopt(long)]
+	#[clap(long)]
 	at: Option<Hash>,
 
 	/// The solver algorithm to use.
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	solver: Solvers,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct SharedConfig {
 	/// The `ws` node to connect to.
-	#[structopt(long, short, default_value = DEFAULT_URI, env = "URI")]
+	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
 	/// The seed of a funded account in hex.
 	///
 	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
-	#[structopt(long, short, env = "SEED")]
+	#[clap(long, short, env = "SEED")]
 	seed: String,
 }
 
-#[derive(Debug, Clone, StructOpt)]
+#[derive(Debug, Clone, Parser)]
 struct Opt {
 	/// The `ws` node to connect to.
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	shared: SharedConfig,
 
-	#[structopt(subcommand)]
+	#[clap(subcommand)]
 	command: Command,
 }
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT>(
+async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	uri: String,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
@@ -493,13 +496,10 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
-		client,
-		"state_getRuntimeVersion",
-		params! {},
-	)
-	.await
-	.expect("runtime version RPC should always work; qed");
+	let on_chain_version =
+		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
+			.await
+			.expect("runtime version RPC should always work; qed");
 
 	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
 	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
@@ -521,7 +521,7 @@ async fn main() {
 		.format_module_path(true)
 		.format_level(true)
 		.init();
-	let Opt { shared, command } = Opt::from_args();
+	let Opt { shared, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
 	let client = loop {
@@ -543,7 +543,7 @@ async fn main() {
 		}
 	};
 
-	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", params! {})
+	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", None)
 		.await
 		.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {
@@ -556,19 +556,19 @@ async fn main() {
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
-				RUNTIME = AnyRuntime::AXIA;
+				RUNTIME = AnyRuntime::Axia;
 			}
 		},
-		"axiatest" | "axiatest-dev" => {
+		"axctest" | "axctest-dev" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormatRegistry::AxiatestAccount.into(),
+				sp_core::crypto::Ss58AddressFormatRegistry::AxiaTestAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("AXCT");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
-				RUNTIME = AnyRuntime::AXIATEST;
+				RUNTIME = AnyRuntime::AxiaTest;
 			}
 		},
 		"alphanet" => {
@@ -580,7 +580,7 @@ async fn main() {
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
-				RUNTIME = AnyRuntime::AlphaNet;
+				RUNTIME = AnyRuntime::Alphanet;
 			}
 		},
 		_ => {
@@ -602,7 +602,7 @@ async fn main() {
 
 	let outcome = any_runtime! {
 		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await
+			Command::Monitor(c) => monitor_cmd(client, shared, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
 				}),
@@ -630,16 +630,16 @@ mod tests {
 	#[test]
 	fn any_runtime_works() {
 		unsafe {
-			RUNTIME = AnyRuntime::AXIA;
+			RUNTIME = AnyRuntime::Axia;
 		}
 		let axia_version = any_runtime! { get_version::<Runtime>() };
 
 		unsafe {
-			RUNTIME = AnyRuntime::AXIATEST;
+			RUNTIME = AnyRuntime::AxiaTest;
 		}
-		let axiatest_version = any_runtime! { get_version::<Runtime>() };
+		let axctest_version = any_runtime! { get_version::<Runtime>() };
 
 		assert_eq!(axia_version.spec_name, "axia".into());
-		assert_eq!(axiatest_version.spec_name, "axiatest".into());
+		assert_eq!(axctest_version.spec_name, "axctest".into());
 	}
 }

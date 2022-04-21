@@ -2,20 +2,20 @@
 
 Native runtimes:
 
-- AXIA: **<%= axia_runtime %>**
-- AXIATEST: **<%= axiatest_runtime %>**
-- AlphaNet: **<%= alphanet_runtime %>**
+- Axia: **<%= axia_runtime %>**
+- AxiaTest: **<%= axctest_runtime %>**
+- Alphanet: **<%= alphanet_runtime %>**
 
 This release was tested against the following versions of `rustc`. Other versions may work.
 
 - <%= rustc_stable %>
 - <%= rustc_nightly %>
 
-WASM runtimes built with [<%= axia_json['info']['generator']['name'] %> v<%= axia_json['info']['generator']['version'] %>](https://github.com/axia/srtool) using `<%= axia_json['rustc'] %>`.
+WASM runtimes built with [<%= axia_json['info']['generator']['name'] %> v<%= axia_json['info']['generator']['version'] %>](https://github.com/axiatech/srtool) using `<%= axia_json['rustc'] %>`.
 
 Proposal hashes:
 * `axia_runtime-v<%= axia_runtime %>.compact.compressed.wasm`: `<%= axia_json['runtimes']['compressed']['prop'] %>`
-* `axiatest_runtime-v<%= axiatest_runtime %>.compact.compressed.wasm`: `<%= axiatest_json['runtimes']['compressed']['prop'] %>`
+* `axctest_runtime-v<%= axctest_runtime %>.compact.compressed.wasm`: `<%= axctest_json['runtimes']['compressed']['prop'] %>`
 
 <% unless misc_changes.empty? %>
 ## Changes

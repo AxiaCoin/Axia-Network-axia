@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use axia_scale_codec::{Decode, Encode};
 use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
@@ -141,9 +141,9 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// ```rust
 /// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};
 /// # use xcm_executor::traits::ConvertOrigin;
-/// // A convertor that will bump the para id and pass it to the next one.
-/// struct BumpParaId;
-/// impl ConvertOrigin<u32> for BumpParaId {
+/// // A convertor that will bump the ally id and pass it to the next one.
+/// struct BumpAllyId;
+/// impl ConvertOrigin<u32> for BumpAllyId {
 /// 	fn convert_origin(origin: impl Into<MultiLocation>, _: OriginKind) -> Result<u32, MultiLocation> {
 /// 		match origin.into() {
 /// 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Allychain(id)) } => {
@@ -168,7 +168,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// # fn main() {
 /// let origin: MultiLocation = Junctions::X1(Junction::Allychain(6)).into();
 /// assert!(
-/// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
+/// 	<(BumpAllyId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()
 /// );
 /// # }
@@ -207,5 +207,6 @@ impl<O> ConvertOrigin<O> for Tuple {
 /// Means of inverting a location: given a location which describes a `target` interpreted from the
 /// `source`, this will provide the corresponding location which describes the `source`.
 pub trait InvertLocation {
+	fn ancestry() -> MultiLocation;
 	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
 }

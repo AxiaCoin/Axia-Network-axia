@@ -1,24 +1,24 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! FuturesUndead: A `FuturesUnordered` with support for semi canceled futures. Those undead
 //! futures will still get polled, but will not count towards length. So length will only count
 //! futures, which are still considered live.
 //!
-//! Usecase: If futures take longer than we would like them too, we may be able to request the data
+//! Use case: If futures take longer than we would like them too, we may be able to request the data
 //! from somewhere else as well. We don't really want to cancel the old future, because maybe it
 //! was almost done, thus we would have wasted time with our impatience. By simply making them
 //! not count towards length, we can make sure to have enough "live" requests ongoing, while at the

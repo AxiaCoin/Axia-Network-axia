@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Client, FullBackend};
 use axia_scale_codec::{Decode, Encode};
@@ -27,18 +27,18 @@ use sp_consensus_babe::{
 use sp_runtime::{generic::BlockId, Digest, DigestItem};
 use sp_state_machine::BasicExternalities;
 
-/// An extension for the test client to initialize a AXIA specific block builder.
-pub trait InitAXIABlockBuilder {
-	/// Init a AXIA specific block builder that works for the test runtime.
+/// An extension for the test client to initialize a Axia specific block builder.
+pub trait InitAxiaBlockBuilder {
+	/// Init a Axia specific block builder that works for the test runtime.
 	///
 	/// This will automatically create and push the inherents for you to make the block valid for the test runtime.
 	fn init_axia_block_builder(
 		&self,
 	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 
-	/// Init a AXIA specific block builder at a specific block that works for the test runtime.
+	/// Init a Axia specific block builder at a specific block that works for the test runtime.
 	///
-	/// Same as [`InitAXIABlockBuilder::init_axia_block_builder`] besides that it takes a [`BlockId`] to say
+	/// Same as [`InitAxiaBlockBuilder::init_axia_block_builder`] besides that it takes a [`BlockId`] to say
 	/// which should be the parent block of the block that is being build.
 	fn init_axia_block_builder_at(
 		&self,
@@ -46,7 +46,7 @@ pub trait InitAXIABlockBuilder {
 	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 }
 
-impl InitAXIABlockBuilder for Client {
+impl InitAxiaBlockBuilder for Client {
 	fn init_axia_block_builder(&self) -> BlockBuilder<Block, Client, FullBackend> {
 		let chain_info = self.chain_info();
 		self.init_axia_block_builder_at(&BlockId::Hash(chain_info.best_hash))
@@ -125,9 +125,9 @@ impl InitAXIABlockBuilder for Client {
 	}
 }
 
-/// AXIA specific extensions for the [`BlockBuilder`].
+/// Axia specific extensions for the [`BlockBuilder`].
 pub trait BlockBuilderExt {
-	/// Push a AXIA test runtime specific extrinsic to the block.
+	/// Push a Axia test runtime specific extrinsic to the block.
 	///
 	/// This will internally use the [`BlockBuilder::push`] method, but this method expects a opaque extrinsic. So,
 	/// we provide this wrapper which converts a test runtime specific extrinsic to a opaque extrinsic and pushes it to

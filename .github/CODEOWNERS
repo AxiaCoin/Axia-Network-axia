@@ -1,1 +1,7 @@
-bridges/ @tomusdrw @svyatonik @hcastano
+bridges/ @tomusdrw @svyatonik @adoerr @acatangiu @antonio-dropulic
+
+# CI
+/.github/ @axiatech/ci @chevdor
+/scripts/github/ @axiatech/ci @chevdor
+/scripts/gitlab/ @axiatech/ci @chevdor
+/.gitlab-ci.yml @axiatech/ci

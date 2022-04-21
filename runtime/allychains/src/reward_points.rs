@@ -1,23 +1,23 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! An implementation of the `RewardValidators` trait used by `inclusion` that employs
 //! `pallet-staking` to compute the rewards.
 //!
-//! Based on https://w3f-research.readthedocs.io/en/latest/axia/Token%20Economics.html
+//! Based on https://research.web3.foundation/en/latest/axia/overview/2-token-economics.html
 //! which doesn't currently mention availability bitfields. As such, we don't reward them
 //! for the time being, although we will build schemes to do so in the future.
 
@@ -26,7 +26,8 @@ use pallet_staking::SessionInterface;
 use primitives::v1::ValidatorIndex;
 
 /// The amount of era points given by backing a candidate that is included.
-pub const BACKING_POINTS: u32 = 20;
+// pub const BACKING_POINTS: u32 = 20;
+pub const BACKING_POINTS: u32 = 1;
 
 /// Rewards validators for participating in allychains with era points in pallet-staking.
 pub struct RewardValidatorsWithEraPoints<C>(sp_std::marker::PhantomData<C>);

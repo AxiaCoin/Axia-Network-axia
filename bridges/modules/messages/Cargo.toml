@@ -2,13 +2,13 @@
 name = "pallet-bridge-messages"
 description = "Module that allows bridged chains to exchange messages using lane concept."
 version = "0.1.0"
-authors = ["AXIA Technologies <admin@axiacoin.network>"]
+authors = ["Axia Technologies <admin@axia.io>"]
 edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 bitvec = { version = "0.20", default-features = false, features = ["alloc"] }
-codec = { package = "axia-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "axia-scale-codec", version = "2.2.0", default-features = false }
 log = { version = "0.4.14", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
@@ -18,23 +18,22 @@ serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 bp-message-dispatch = { path = "../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../primitives/messages", default-features = false }
-bp-rialto = { path = "../../primitives/chain-rialto", default-features = false }
 bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Axlib Dependencies
 
-frame-benchmarking = { git = "https://github.com/axia-tech/axia-core", default-features = false, optional = true , branch = "dev" }
-frame-support = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-frame-system = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-core = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-runtime = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
-sp-std = { git = "https://github.com/axia-tech/axia-core", default-features = false , branch = "dev" }
+frame-benchmarking = { git = "https://github.com/axia-tech/axlib", default-features = false, optional = true , branch = "axlib" }
+frame-support = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+frame-system = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-core = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-runtime = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
+sp-std = { git = "https://github.com/axia-tech/axlib", default-features = false , branch = "axlib" }
 
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
-sp-io = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
-pallet-balances = { git = "https://github.com/axia-tech/axia-core", branch = "dev" }
+sp-io = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
+pallet-balances = { git = "https://github.com/axia-tech/axlib", branch = "axlib" }
 
 [features]
 default = ["std"]
@@ -42,7 +41,6 @@ std = [
 	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-runtime/std",
-	"bp-rialto/std",
 	"codec/std",
 	"frame-support/std",
 	"frame-system/std",
@@ -55,5 +53,5 @@ std = [
 	"sp-std/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 ]

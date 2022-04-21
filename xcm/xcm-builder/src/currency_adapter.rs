@@ -1,18 +1,18 @@
-// Copyright 2020 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2020 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Adapters to work with `frame_support::traits::Currency` through XCM.
 
@@ -52,9 +52,11 @@ impl From<Error> for XcmError {
 ///
 /// # Example
 /// ```
-/// use frame_support::parameter_types;
+/// use axia_scale_codec::Decode;
+/// use frame_support::{parameter_types, PalletId};
+/// use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 /// use xcm::latest::prelude::*;
-/// use xcm_builder::{ParentIsDefault, CurrencyAdapter, IsConcrete};
+/// use xcm_builder::{ParentIsPreset, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
 /// type AccountId = sp_runtime::AccountId32;
@@ -62,12 +64,12 @@ impl From<Error> for XcmError {
 /// /// Our relay chain's location.
 /// parameter_types! {
 ///     pub RelayChain: MultiLocation = Parent.into();
-///     pub CheckingAccount: AccountId = Default::default();
+///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
 /// /// messages from the parent (relay chain).
-/// pub type LocationConvertor = (ParentIsDefault<RelayChain>);
+/// pub type LocationConverter = (ParentIsPreset<AccountId>);
 ///
 /// /// Final currency adapter. This can be used in `xcm::Config` to specify how asset related transactions happen.
 /// pub type AssetTransactor = CurrencyAdapter<
@@ -75,8 +77,8 @@ impl From<Error> for XcmError {
 ///     u128,
 ///     // The matcher: use the currency when the asset is a concrete asset in our relay chain.
 ///     IsConcrete<RelayChain>,
-///     // The local convertor: default account of the parent relay chain.
-///     LocationConvertor,
+///     // The local converter: default account of the parent relay chain.
+///     LocationConverter,
 ///     // Our chain's account ID type.
 ///     AccountId,
 ///     // The checking account. Can be any deterministic inaccessible account.
@@ -97,6 +99,7 @@ impl<
 	for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
 {
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
+		log::trace!(target: "xcm::currency_adapter", "can_check_in origin: {:?}, what: {:?}", _origin, what);
 		// Check we handle this asset.
 		let amount: Currency::Balance =
 			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
@@ -116,6 +119,7 @@ impl<
 	}
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
+		log::trace!(target: "xcm::currency_adapter", "check_in origin: {:?}, what: {:?}", _origin, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				let ok = Currency::withdraw(
@@ -134,6 +138,7 @@ impl<
 	}
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
+		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				Currency::deposit_creating(&checked_account, amount);
@@ -142,7 +147,7 @@ impl<
 	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
-		log::trace!("xcm::currency_adapter deposit_asset {:?} {:?}", what, who);
+		log::trace!(target: "xcm::currency_adapter", "deposit_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
 			Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?.saturated_into();
@@ -155,6 +160,7 @@ impl<
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<Assets, XcmError> {
+		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
 			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?.saturated_into();

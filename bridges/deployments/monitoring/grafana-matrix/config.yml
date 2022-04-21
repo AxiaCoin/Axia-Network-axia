@@ -6,8 +6,8 @@
 
 # Set up your HS connections
 matrix:
-- name: matrix-axiacoin.network
-  url: https://matrix.axiacoin.network
+- name: matrix-axia-io
+  url: https://matrix.axia.io
   # Create a user - log that user in using a post request
   # curl -XPOST -d '{"type": "m.login.password",
   #                  "user":"grafana",
@@ -24,8 +24,8 @@ msgtype: m.text
 # Set up notification ingress rules
 rules:
 - name: bridge              # Name of the rule
-  room: "#bridges-workers:matrix.axiacoin.network" # Room or ID
-  matrix: matrix-axiacoin.network     # The Matrix HS to use - defaults to first one
+  room: "#bridges-workers:matrix.axia.io" # Room or ID
+  matrix: matrix-axia-io     # The Matrix HS to use - defaults to first one
   msgtype: m.notice
   # The following values are optional:
   image: true           # Attach image to the notification?

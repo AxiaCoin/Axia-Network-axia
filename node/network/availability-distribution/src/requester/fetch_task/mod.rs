@@ -1,18 +1,18 @@
-// Copyright 2021 AXIA Technologies (UK) Ltd.
-// This file is part of AXIA.
+// Copyright 2021 Axia Technologies (UK) Ltd.
+// This file is part of Axia.
 
-// AXIA is free software: you can redistribute it and/or modify
+// Axia is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// AXIA is distributed in the hope that it will be useful,
+// Axia is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with AXIA.  If not, see <http://www.gnu.org/licenses/>.
+// along with Axia.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
 
@@ -64,7 +64,7 @@ pub struct FetchTask {
 	/// In other words, for which relay chain parents this candidate is considered live.
 	/// This is updated on every `ActiveLeavesUpdate` and enables us to know when we can safely
 	/// stop keeping track of that candidate/chunk.
-	live_in: HashSet<Hash>,
+	pub(crate) live_in: HashSet<Hash>,
 
 	/// We keep the task around in until `live_in` becomes empty, to make
 	/// sure we won't re-fetch an already fetched candidate.
@@ -103,7 +103,7 @@ struct RunningTask {
 
 	/// Index of validator group to fetch the chunk from.
 	///
-	/// Needef for reporting bad validators.
+	/// Needed for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
@@ -203,7 +203,9 @@ impl FetchTask {
 	/// Remove leaves and cancel the task, if it was the last one and the task has still been
 	/// fetching.
 	pub fn remove_leaves(&mut self, leaves: &HashSet<Hash>) {
-		self.live_in.difference(leaves);
+		for leaf in leaves {
+			self.live_in.remove(leaf);
+		}
 		if self.live_in.is_empty() && !self.is_finished() {
 			self.state = FetchedState::Canceled
 		}
@@ -327,7 +329,7 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
