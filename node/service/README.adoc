@@ -1,5 +1,0 @@
-
-= Axia Service
-
-placeholder
-//TODO Write content :) (https://github.com/axiatech/axia/issues/159)
