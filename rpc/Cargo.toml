@@ -1,0 +1,37 @@
+[package]
+name = "axia-rpc"
+authors = ['Axia Network <https://github.com/Axia-Tech>']
+version = '0.9.0'
+edition = "2018"
+license = 'GPL-3.0'
+homepage = 'https://axia.finance'
+repository = 'https://github.com/AxiaCoin/Axia-Network-axia/tree/master'
+description = "Runtime API definition required by System RPC extensions."
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+jsonrpc-core = "15.0.0"
+jsonrpc-core-client = "15.0.0"
+jsonrpc-derive = "15.0.0"
+sp-runtime = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
+sp-api = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
+sp-std = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0" , default-features = false }
+sp-blockchain = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
+axia-rpc-runtime-api = { path = "runtime-api" }
+serde = { version = "1.0.101", optional = true }
+axia-primitives = { path = "../primitives" }
+strum = "0.19.2"
+strum_macros = "0.19.2"
+int-enum = "0.4.0"
+
+[features]
+default = ["std"]
+std = [
+  "serde",
+  "axia-rpc-runtime-api/std",
+  "sp-api/std",
+  "codec/std",
+]

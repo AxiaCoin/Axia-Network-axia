@@ -1,0 +1,32 @@
+version: "3.2"
+
+services:
+  dev:
+    container_name: axia
+    image: paritytech/ci-linux:production
+    working_dir: /var/www/axia
+    ports:
+      - "9944:9944"
+    environment:
+      - CARGO_HOME=/var/www/axia/.cargo
+    volumes:
+      - .:/var/www/axia
+      - type: bind
+        source: ./.local
+        target: /root/.local
+    command: bash -c "cargo build --release && ./target/release/axia --dev --ws-external"
+
+  build:
+    container_name: axia-build
+    image: axiaio/ci-linux-production:nightly-0629
+    working_dir: /var/www/axia
+    ports:
+      - "9944:9944"
+    environment:
+      - CARGO_HOME=/var/www/axia/.cargo
+    volumes:
+      - .:/var/www/axia
+      - type: bind
+        source: ./.local
+        target: /root/.local
+    command: bash -c "rm -rf target_linux && mkdir target_linux && cargo build --release --features $AXIA_NETWORK && cp ./target/release/axia target_linux"
