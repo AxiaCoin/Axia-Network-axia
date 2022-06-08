@@ -17,5 +17,5 @@ secp256k1 = "0.20.3"
 tiny-bip39 = "0.8.0"
 tiny-hderive = "0.3.0"
 sha3 = { version = "0.9.1", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0" , default-features = false }
+sp-core = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0" , default-features = false }
+sp-runtime = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0" , default-features = false }

@@ -16,10 +16,10 @@ codec = { package = "parity-scale-codec", version = "2.0.0" }
 jsonrpc-core = "15.0.0"
 jsonrpc-core-client = "15.0.0"
 jsonrpc-derive = "15.0.0"
-sp-runtime = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
-sp-api = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
-sp-std = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0" , default-features = false }
-sp-blockchain = { git = "https://github.com/paritytech/substrate.git",  tag = "v3.0.0"  }
+sp-runtime = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0"  }
+sp-api = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0"  }
+sp-std = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0" , default-features = false }
+sp-blockchain = { git = "https://github.com/Axia-Tech/substrate-v2.git",  tag = "v3.0.0"  }
 axia-rpc-runtime-api = { path = "runtime-api" }
 serde = { version = "1.0.101", optional = true }
 axia-primitives = { path = "../primitives" }
